@@ -90,20 +90,26 @@ export function UsersTable() {
     isUpdating,
   } = usePermissions(selectedUser?.id ?? "");
 
-  React.useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
-
-  // Update local permissions state when data changes
-  React.useEffect(() => {
+   React.useEffect(() => {
     if (permissions) {
-      const perms = permissions.reduce((acc, p) => {
-        acc[p.name] = p.granted;
-        return acc;
-      }, {} as { [key: string]: boolean });
-      setPermissionsData(perms);
+      // Check if permissions is an object with a permissions property
+      if (typeof permissions === 'object' && 'permissions' in permissions) {
+        setPermissionsData(permissions.permissions as { [key: string]: boolean });
+      } 
+      // Check if permissions is an array
+      else if (Array.isArray(permissions)) {
+        const perms = permissions.reduce((acc, p) => {
+          acc[p.name] = p.granted;
+          return acc;
+        }, {} as { [key: string]: boolean });
+        setPermissionsData(perms);
+      }
+      // Check if permissions is already a flat object
+      else if (typeof permissions === 'object') {
+        setPermissionsData(permissions as { [key: string]: boolean });
+      }
     }
-  }, [permissions]);
+  }, [permissions]);    
 
   const getInitials = (name: string, surname: string) => {
     return `${name?.charAt(0) || ""}${surname?.charAt(0) || ""}`.toUpperCase();

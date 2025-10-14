@@ -1,6 +1,4 @@
-// hooks/useProjects.ts
 "use client";
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 
@@ -17,14 +15,13 @@ export function useProjects() {
     queryKey: ["projects"],
     queryFn: async () => {
       const { data } = await api.get("/wordpress/projects");
-      return data;
+      return data.projects; // <-- FIXED: Extract projects array from response
     },
   });
 }
 
 export function useCreateProject() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (newProject: Partial<Project>) => {
       const { data } = await api.post("/wordpress/projects", newProject);
@@ -38,7 +35,6 @@ export function useCreateProject() {
 
 export function useUpdateProject() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async ({
       id,
@@ -56,7 +52,6 @@ export function useUpdateProject() {
 
 export function useDeleteProject() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (id: number) => {
       await api.delete(`/wordpress/projects/${id}`);

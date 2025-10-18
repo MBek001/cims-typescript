@@ -61,4 +61,4 @@ export function useDeleteProject() {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
   });
-}
+}     

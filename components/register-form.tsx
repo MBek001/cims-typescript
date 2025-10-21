@@ -41,9 +41,11 @@ export default function RegisterForm() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+
     const form = new FormData(e.currentTarget);
     form.set("role", role);
     const values = serializeRegisterForm(form);
+
     const validationError = validateRegister(values);
     if (validationError) {
       setError(validationError);
@@ -63,26 +65,23 @@ export default function RegisterForm() {
     try {
       setPending(true);
       const data = await registerUser(payload);
-      if (data.access_token) setToken(data.access_token);
-      if (data.user) setUser(data.user);
+      console.log("REGISTER RESPONSE:", data);
+
+      if (data?.access_token) setToken(data.access_token);
+      if (data?.user) setUser(data.user);
+
+      // Always redirect after successful registration
       router.push(`/verify-email?email=${encodeURIComponent(payload.email)}`);
-    } catch (err) {
+    } catch (err: any) {
+      console.error("REGISTER ERROR:", err);
       let message = "Registration failed.";
-      if (
-        err &&
-        typeof err === "object" &&
-        "response" in err &&
-        err.response &&
-        typeof err.response === "object" &&
-        "data" in err.response &&
-        err.response.data &&
-        typeof err.response.data === "object"
-      ) {
-        const data = err.response.data as { message?: string };
-        message = data.message || message;
+
+      if (err?.response?.data?.message) {
+        message = err.response.data.message;
       } else if (err instanceof Error) {
         message = err.message;
       }
+
       setError(message);
     } finally {
       setPending(false);
@@ -114,12 +113,7 @@ export default function RegisterForm() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="surname">Last name</Label>
-                <Input
-                  id="surname"
-                  name="surname"
-                  required
-                  disabled={pending}
-                />
+                <Input id="surname" name="surname" required disabled={pending} />
               </div>
             </div>
 
@@ -149,7 +143,7 @@ export default function RegisterForm() {
               <Label>Role</Label>
               <Select value={role} onValueChange={setRole} disabled={pending}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
                   {ROLES.map((r) => (

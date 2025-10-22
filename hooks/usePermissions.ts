@@ -12,9 +12,10 @@
   }
   
   async function fetchPermissions(userId: string): Promise<Permissions> {
-    const { data } = await api.get(`/ceo/users/${userId}/permissions`)
-    return data
+    const { data } = await api.get(`/ceo/users/${userId}/permissions`);
+    return data.permissions; // ✅ correct
   }
+
   
   async function updatePermissions(userId: string, permissions: Permissions): Promise<Permissions> {
     const { data } = await api.put(`/ceo/users/${userId}/permissions`, permissions)

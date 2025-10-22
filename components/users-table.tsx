@@ -97,20 +97,26 @@ export function UsersTable() {
   // ✅ Sync permissions ONLY when API returns data
   // In your UsersTable component, update this useEffect:
   
+  
   React.useEffect(() => {
-    if (permissions) {
+    // Only initialize permissionsData when:
+    // 1. We are in "permissions" dialog mode
+    // 2. We have valid permissions data from the API
+    if (dialogMode === "permissions" && permissions) {
       const normalized: PermissionsData = {
-        ceo: Boolean(permissions.ceo ?? false),
-        payment_list: Boolean(permissions.payment_list ?? false),
-        project_toggle: Boolean(permissions.project_toggle ?? false),
-        crm: Boolean(permissions.crm ?? false),
-        finance_list: Boolean(permissions.finance_list ?? false),
+        ceo: Boolean(permissions.ceo),
+        payment_list: Boolean(permissions.payment_list),
+        project_toggle: Boolean(permissions.project_toggle),
+        crm: Boolean(permissions.crm),
+        finance_list: Boolean(permissions.finance_list),
       };
       setPermissionsData(normalized);
-    } else {
+    } else if (dialogMode !== "permissions") {
+      // Clean up when dialog is closed or switched
       setPermissionsData(null);
     }
-  }, [permissions]);
+    // Important: depend on both `permissions` AND `dialogMode`
+  }, [permissions, dialogMode]);
 
 
 

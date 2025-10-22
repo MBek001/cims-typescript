@@ -1,16 +1,29 @@
 // hooks/useHasPermission.ts
-import { usePermissions } from "./usePermissions"
+import { usePermissions } from "./usePermissions";
 
-export function useHasPermission(userId: string, required: string | string[]) {
-  const { data: permissions, isLoading, isError } = usePermissions(userId)
+// Match your backend permission keys
+type PermissionKey = "ceo" | "payment_list" | "project_toggle" | "crm" | "finance_list";
 
-  if (isLoading) return { allowed: false, loading: true }
-  if (isError || !permissions) return { allowed: false, loading: false }
+export function useHasPermission(
+  userId: string,
+  required: PermissionKey | PermissionKey[]
+) {
+  const { data: permissions, isLoading, isError } = usePermissions(userId);
 
-  const requiredArray = Array.isArray(required) ? required : [required]
-  const grantedPermissions = permissions.filter(p => p.granted).map(p => p.name)
+  if (isLoading) {
+    return { allowed: false, loading: true };
+  }
 
-  const allowed = requiredArray.every(r => grantedPermissions.includes(r))
+  if (isError || !permissions) {
+    return { allowed: false, loading: false };
+  }
 
-  return { allowed, loading: false }
+  // Convert to array if single string
+  const requiredArray = Array.isArray(required) ? required : [required];
+
+  // Since permissions is a flat object like { ceo: true, ... },
+  // check if all required keys are present and truthy
+  const allowed = requiredArray.every((key) => permissions[key] === true);
+
+  return { allowed, loading: false };
 }

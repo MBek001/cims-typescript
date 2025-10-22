@@ -140,23 +140,44 @@ export function UsersTable() {
   };
 
   const handlePermissionToggle = (permissionKey: string) => {
-    setPermissionsData((prev) => {
-      const newPerms = { ...prev };
-      const keys = permissionKey.split(".");
-      let temp: Record<string, unknown> = newPerms;
-      for (let i = 0; i < keys.length - 1; i++) {
-        temp = temp[keys[i]] as Record<string, unknown>;
+    setPermissionsData((prev) => ({
+      ...prev,
+      [permissionKey]: !prev[permissionKey]
+    }));
+  };
+  
+  const handleSavePermissions = async () => {
+    try {
+      await updatePermissions(permissionsData);
+      toast.success("Permissions updated successfully");
+      setOpen(false);
+    } catch (err) {
+      let message = "Failed to update permissions";
+      if (err instanceof Error) {
+        message = err.message;
+      } else if (
+        err &&
+        typeof err === "object" &&
+        "response" in err &&
+        err.response &&
+        typeof err.response === "object" &&
+        "data" in err.response &&
+        err.response.data &&
+        typeof err.response.data === "object"
+      ) {
+        const data = err.response.data as { message?: string };
+        message = data.message || message;
       }
-      temp[keys[keys.length - 1]] = !temp[keys[keys.length - 1]];
-      return newPerms;
-    });
+      toast.error(message);
+    }
   };
 
   const handleSavePermissions = async () => {
-    // Backend expects: { ceo: true, payment_list: false, ... }
-    // Don't convert to array format
+    const permissionsToUpdate = Object.entries(permissionsData).map(
+      ([name, granted]) => ({ name, granted })
+    );
     try {
-      await updatePermissions(permissionsData); // Pass the object directly
+      await updatePermissions(permissionsToUpdate as any);
       toast.success("Permissions updated successfully");
       setOpen(false);
     } catch (err) {

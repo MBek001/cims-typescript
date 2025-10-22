@@ -50,6 +50,10 @@ import {
 } from "@/services/userServices";
 import { usePermissions } from "@/hooks/usePermissions";
 
+// Define permission keys to match backend
+type PermissionKey = "ceo" | "payment_list" | "project_toggle" | "crm" | "finance_list";
+type PermissionsData = Record<PermissionKey, boolean>;
+
 type User = {
   id: string;
   name: string;
@@ -78,10 +82,15 @@ export function UsersTable() {
     "edit" | "delete" | "add" | "permissions"
   >("edit");
 
-  // Permissions state
-  const [permissionsData, setPermissionsData] = React.useState<{
-    [key: string]: boolean;
-  }>({});
+  // Permissions state — initialize with all false
+  const [permissionsData, setPermissionsData] = React.useState<PermissionsData>({
+    ceo: false,
+    payment_list: false,
+    project_toggle: false,
+    crm: false,
+    finance_list: false,
+  });
+
   const {
     data: permissions,
     isLoading: permissionsLoading,
@@ -90,26 +99,13 @@ export function UsersTable() {
     isUpdating,
   } = usePermissions(selectedUser?.id ?? "");
 
-   React.useEffect(() => {
+  // Sync permissions from API into local state
+  React.useEffect(() => {
     if (permissions) {
-      // Check if permissions is an object with a permissions property
-      if (typeof permissions === 'object' && 'permissions' in permissions) {
-        setPermissionsData(permissions.permissions as { [key: string]: boolean });
-      } 
-      // Check if permissions is an array
-      else if (Array.isArray(permissions)) {
-        const perms = permissions.reduce((acc, p) => {
-          acc[p.name] = p.granted;
-          return acc;
-        }, {} as { [key: string]: boolean });
-        setPermissionsData(perms);
-      }
-      // Check if permissions is already a flat object
-      else if (typeof permissions === 'object') {
-        setPermissionsData(permissions as { [key: string]: boolean });
-      }
+      // permissions is already a flat object like { ceo: true, ... }
+      setPermissionsData(permissions as PermissionsData);
     }
-  }, [permissions]);    
+  }, [permissions]);
 
   const getInitials = (name: string, surname: string) => {
     return `${name?.charAt(0) || ""}${surname?.charAt(0) || ""}`.toUpperCase();
@@ -139,45 +135,18 @@ export function UsersTable() {
     setOpen(true);
   };
 
-  const handlePermissionToggle = (permissionKey: string) => {
+  // ✅ Simplified: toggle flat permission key
+  const handlePermissionToggle = (permissionKey: PermissionKey) => {
     setPermissionsData((prev) => ({
       ...prev,
-      [permissionKey]: !prev[permissionKey]
+      [permissionKey]: !prev[permissionKey],
     }));
-  };
-  
-  const handleSavePermissions = async () => {
-    try {
-      await updatePermissions(permissionsData);
-      toast.success("Permissions updated successfully");
-      setOpen(false);
-    } catch (err) {
-      let message = "Failed to update permissions";
-      if (err instanceof Error) {
-        message = err.message;
-      } else if (
-        err &&
-        typeof err === "object" &&
-        "response" in err &&
-        err.response &&
-        typeof err.response === "object" &&
-        "data" in err.response &&
-        err.response.data &&
-        typeof err.response.data === "object"
-      ) {
-        const data = err.response.data as { message?: string };
-        message = data.message || message;
-      }
-      toast.error(message);
-    }
   };
 
   const handleSavePermissions = async () => {
-    const permissionsToUpdate = Object.entries(permissionsData).map(
-      ([name, granted]) => ({ name, granted })
-    );
     try {
-      await updatePermissions(permissionsToUpdate as any);
+      // ✅ Pass the flat object directly — matches backend
+      await updatePermissions(permissionsData);
       toast.success("Permissions updated successfully");
       setOpen(false);
     } catch (err) {
@@ -208,7 +177,7 @@ export function UsersTable() {
     try {
       await deleteUser(selectedUser.id);
       toast.success("User deleted successfully");
-      await fetchDashboard(true); // Sync UI with server
+      await fetchDashboard(true);
       setOpen(false);
       setSelectedUser(null);
     } catch (err) {
@@ -256,7 +225,7 @@ export function UsersTable() {
       setIsSaving(true);
       await addUser(payload);
       toast.success("User added successfully");
-      await fetchDashboard(true); // Refresh data from server
+      await fetchDashboard(true);
       setOpen(false);
     } catch (err) {
       let message = "Failed to add user. Try again.";
@@ -504,7 +473,7 @@ export function UsersTable() {
         </Table>
       </div>
 
-      {/* Unified Dialog for Add, Edit, Delete, and Permissions */}
+      {/* Unified Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           {dialogMode === "add" && (
@@ -629,14 +598,12 @@ export function UsersTable() {
 
                   try {
                     setIsSaving(true);
-                    // Optimistic update
                     updateUserInStore(selectedUser.id, payload);
                     await updateUser(selectedUser.id, payload);
                     toast.success("User updated successfully");
                     setOpen(false);
                     setSelectedUser(null);
                   } catch (err) {
-                    // Revert on error
                     await fetchDashboard(true);
                     let message = "Failed to update user";
                     if (err instanceof Error) {
@@ -818,8 +785,7 @@ export function UsersTable() {
                   </div>
 
                   <div className="space-y-3 max-h-80 overflow-y-auto">
-                    {permissionsData &&
-                    Object.keys(permissionsData).length > 0 ? (
+                    {Object.entries(permissionsData).length > 0 ? (
                       Object.entries(permissionsData).map(([key, value]) => (
                         <div
                           key={key}
@@ -836,7 +802,9 @@ export function UsersTable() {
                           <Switch
                             id={`permission-${key}`}
                             checked={value}
-                            onCheckedChange={() => handlePermissionToggle(key)}
+                            onCheckedChange={() =>
+                              handlePermissionToggle(key as PermissionKey)
+                            }
                             disabled={isUpdating}
                           />
                         </div>

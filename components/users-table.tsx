@@ -153,11 +153,10 @@ export function UsersTable() {
   };
 
   const handleSavePermissions = async () => {
-    const permissionsToUpdate = Object.entries(permissionsData).map(
-      ([name, granted]) => ({ name, granted })
-    );
+    // Backend expects: { ceo: true, payment_list: false, ... }
+    // Don't convert to array format
     try {
-      await updatePermissions(permissionsToUpdate as any);
+      await updatePermissions(permissionsData); // Pass the object directly
       toast.success("Permissions updated successfully");
       setOpen(false);
     } catch (err) {

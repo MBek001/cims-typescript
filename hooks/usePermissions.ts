@@ -2,18 +2,21 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import api from "@/lib/api" // your axios/fetch wrapper
 
-type Permission = {
-  id: string
-  name: string
-  granted: boolean
+// Match the backend structure exactly
+type Permissions = {
+  ceo: boolean
+  payment_list: boolean
+  project_toggle: boolean
+  crm: boolean
+  finance_list: boolean
 }
 
-async function fetchPermissions(userId: string): Promise<Permission[]> {
+async function fetchPermissions(userId: string): Promise<Permissions> {
   const { data } = await api.get(`/ceo/users/${userId}/permissions`)
   return data
 }
 
-async function updatePermissions(userId: string, permissions: Permission[]): Promise<Permission[]> {
+async function updatePermissions(userId: string, permissions: Permissions): Promise<Permissions> {
   const { data } = await api.put(`/ceo/users/${userId}/permissions`, permissions)
   return data
 }
@@ -28,7 +31,7 @@ export function usePermissions(userId: string) {
   })
 
   const permissionsMutation = useMutation({
-    mutationFn: (permissions: Permission[]) => updatePermissions(userId, permissions),
+    mutationFn: (permissions: Permissions) => updatePermissions(userId, permissions),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["permissions", userId] })
     },

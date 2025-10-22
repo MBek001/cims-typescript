@@ -98,19 +98,20 @@ export function UsersTable() {
   // In your UsersTable component, update this useEffect:
   
   React.useEffect(() => {
-    if (permissions && permissions.permissions) {
+    if (permissions) {
       const normalized: PermissionsData = {
-        ceo: Boolean(permissions.permissions.ceo ?? false),
-        payment_list: Boolean(permissions.permissions.payment_list ?? false),
-        project_toggle: Boolean(permissions.permissions.project_toggle ?? false),
-        crm: Boolean(permissions.permissions.crm ?? false),
-        finance_list: Boolean(permissions.permissions.finance_list ?? false),
+        ceo: Boolean(permissions.ceo ?? false),
+        payment_list: Boolean(permissions.payment_list ?? false),
+        project_toggle: Boolean(permissions.project_toggle ?? false),
+        crm: Boolean(permissions.crm ?? false),
+        finance_list: Boolean(permissions.finance_list ?? false),
       };
       setPermissionsData(normalized);
     } else {
       setPermissionsData(null);
     }
   }, [permissions]);
+
 
 
   const getInitials = (name: string, surname: string) => {

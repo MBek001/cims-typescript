@@ -50,8 +50,9 @@ import {
 } from "@/services/userServices";
 import { usePermissions } from "@/hooks/usePermissions";
 
-// Define permission keys to match backend
-type PermissionKey = "ceo" | "payment_list" | "project_toggle" | "crm" | "finance_list";
+// 🔑 Exact permission keys
+const PERMISSION_KEYS = ["ceo", "payment_list", "project_toggle", "crm", "finance_list"] as const;
+type PermissionKey = (typeof PERMISSION_KEYS)[number];
 type PermissionsData = Record<PermissionKey, boolean>;
 
 type User = {
@@ -82,14 +83,8 @@ export function UsersTable() {
     "edit" | "delete" | "add" | "permissions"
   >("edit");
 
-  // Permissions state — initialize with all false
-  const [permissionsData, setPermissionsData] = React.useState<PermissionsData>({
-    ceo: false,
-    payment_list: false,
-    project_toggle: false,
-    crm: false,
-    finance_list: false,
-  });
+  // ✅ Do NOT initialize to false — keep null until API responds
+  const [permissionsData, setPermissionsData] = React.useState<PermissionsData | null>(null);
 
   const {
     data: permissions,
@@ -99,13 +94,24 @@ export function UsersTable() {
     isUpdating,
   } = usePermissions(selectedUser?.id ?? "");
 
-  // Sync permissions from API into local state
+  // ✅ Sync permissions ONLY when API returns data
+  // In your UsersTable component, update this useEffect:
+  
   React.useEffect(() => {
-    if (permissions) {
-      // permissions is already a flat object like { ceo: true, ... }
-      setPermissionsData(permissions as PermissionsData);
+    if (permissions && permissions.permissions) {
+      const normalized: PermissionsData = {
+        ceo: Boolean(permissions.permissions.ceo ?? false),
+        payment_list: Boolean(permissions.permissions.payment_list ?? false),
+        project_toggle: Boolean(permissions.permissions.project_toggle ?? false),
+        crm: Boolean(permissions.permissions.crm ?? false),
+        finance_list: Boolean(permissions.permissions.finance_list ?? false),
+      };
+      setPermissionsData(normalized);
+    } else {
+      setPermissionsData(null);
     }
   }, [permissions]);
+
 
   const getInitials = (name: string, surname: string) => {
     return `${name?.charAt(0) || ""}${surname?.charAt(0) || ""}`.toUpperCase();
@@ -133,19 +139,21 @@ export function UsersTable() {
     setSelectedUser(user);
     setDialogMode("permissions");
     setOpen(true);
+    // ⚠️ Do NOT pre-initialize permissionsData here
+    // Let the useEffect respond to `selectedUser` change
   };
-
-  // ✅ Simplified: toggle flat permission key
   const handlePermissionToggle = (permissionKey: PermissionKey) => {
+    if (!permissionsData) return; // safety
     setPermissionsData((prev) => ({
-      ...prev,
-      [permissionKey]: !prev[permissionKey],
+      ...prev!,
+      [permissionKey]: !prev![permissionKey],
     }));
   };
 
   const handleSavePermissions = async () => {
+    if (!permissionsData || !selectedUser) return; // prevent saving stale/empty data
+
     try {
-      // ✅ Pass the flat object directly — matches backend
       await updatePermissions(permissionsData);
       toast.success("Permissions updated successfully");
       setOpen(false);
@@ -293,7 +301,6 @@ export function UsersTable() {
     <div className="mx-4 my-6">
       <Toaster richColors position="top-right" />
 
-      {/* Add User Button */}
       <div className="mb-4 flex justify-between items-center">
         <div>
           <h2 className="text-xl font-semibold text-foreground">
@@ -473,7 +480,6 @@ export function UsersTable() {
         </Table>
       </div>
 
-      {/* Unified Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           {dialogMode === "add" && (
@@ -753,8 +759,7 @@ export function UsersTable() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Shield size={18} />
-                  Manage Permissions - {selectedUser.name}{" "}
-                  {selectedUser.surname}
+                  Manage Permissions - {selectedUser.name} {selectedUser.surname}
                 </DialogTitle>
               </DialogHeader>
 
@@ -778,6 +783,12 @@ export function UsersTable() {
                     </p>
                   </div>
                 </div>
+              ) : permissionsData === null ? (
+                <div className="flex items-center justify-center py-8">
+                  <p className="text-sm text-muted-foreground">
+                    Loading...
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-4">
                   <div className="text-sm text-muted-foreground">
@@ -785,8 +796,9 @@ export function UsersTable() {
                   </div>
 
                   <div className="space-y-3 max-h-80 overflow-y-auto">
-                    {Object.entries(permissionsData).length > 0 ? (
-                      Object.entries(permissionsData).map(([key, value]) => (
+                    {PERMISSION_KEYS.map((key) => {
+                      const value = permissionsData[key];
+                      return (
                         <div
                           key={key}
                           className="flex items-center justify-between py-2 px-3 border border-border rounded-md bg-muted/25"
@@ -802,18 +814,12 @@ export function UsersTable() {
                           <Switch
                             id={`permission-${key}`}
                             checked={value}
-                            onCheckedChange={() =>
-                              handlePermissionToggle(key as PermissionKey)
-                            }
+                            onCheckedChange={() => handlePermissionToggle(key)}
                             disabled={isUpdating}
                           />
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-6 text-muted-foreground">
-                        No permissions found for this user.
-                      </div>
-                    )}
+                      );
+                    })}
                   </div>
 
                   <div className="flex justify-end gap-2 pt-4 border-t">
@@ -826,9 +832,7 @@ export function UsersTable() {
                     </Button>
                     <Button
                       onClick={handleSavePermissions}
-                      disabled={
-                        isUpdating || !Object.keys(permissionsData).length
-                      }
+                      disabled={isUpdating || permissionsData === null}
                       className="flex items-center gap-2"
                     >
                       {isUpdating && (

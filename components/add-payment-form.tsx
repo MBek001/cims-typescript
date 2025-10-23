@@ -67,6 +67,7 @@ const AddPaymentForm = () => {
   return (
     <div className="p-0 bg-background">
       <div className="space-y-8 px-4 md:px-8 pt-6">
+        
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-foreground">Cognilabs</h1>

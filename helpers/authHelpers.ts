@@ -22,7 +22,7 @@ export function validateRegister(
   if (!values.password) return "Password is required.";
   if (values.password.length < 6) return "Password must be at least 6 characters.";
   if (values.password !== values.confirm) return "Passwords do not match.";
-  if (!values.company_code) return "Company code is required.";
+  
   if (!/^\S+@\S+\.\S+$/.test(values.email)) return "Email is invalid.";
   return null;
 }

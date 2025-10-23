@@ -64,6 +64,7 @@ type User = {
   role: string;
   company_code?: string;
   telegram_id?: string;
+  password?: string;
   default_salary?: number;
   is_active: boolean;
 };
@@ -227,8 +228,9 @@ export function UsersTable() {
       email: (formData.get("email") as string) || "",
       name: (formData.get("name") as string) || "",
       surname: (formData.get("surname") as string) || "",
-      role: (formData.get("role") as string) || "",
-      company_code: (formData.get("company_code") as string) || undefined,
+      role: (formData.get("role") as string) || "Member",
+      password: (formData.get("password") as string) || "",
+      // company_code: (formData.get("company_code") as string) || undefined,
       telegram_id: (formData.get("telegram_id") as string) || undefined,
       default_salary: formData.get("default_salary")
         ? Number(formData.get("default_salary"))
@@ -305,7 +307,7 @@ export function UsersTable() {
   }
 
   return (
-    <div className="mx-4 my-6">
+    <div className="mx-4 my-6 ">
       <Toaster richColors position="top-right" />
 
       <div className="mb-4 flex justify-between items-center">
@@ -337,12 +339,8 @@ export function UsersTable() {
               <TableHead className="px-4 py-2 text-left text-sm font-semibold text-muted-foreground whitespace-nowrap border border-border">
                 Role
               </TableHead>
-              <TableHead className="px-4 py-2 text-left text-sm font-semibold text-muted-foreground whitespace-nowrap border border-border">
-                Company
-              </TableHead>
-              <TableHead className="px-4 py-2 text-left text-sm font-semibold text-muted-foreground whitespace-nowrap border border-border">
-                Telegram
-              </TableHead>
+              
+              
               <TableHead className="px-4 py-2 text-left text-sm font-semibold text-muted-foreground whitespace-nowrap border border-border">
                 Salary
               </TableHead>
@@ -405,12 +403,8 @@ export function UsersTable() {
                       {user.role}
                     </span>
                   </TableCell>
-                  <TableCell className="border border-border text-sm">
-                    {user.company_code}
-                  </TableCell>
-                  <TableCell className="border border-border text-sm text-blue-600 dark:text-blue-400">
-                    @{user.telegram_id}
-                  </TableCell>
+                  
+                  
                   <TableCell className="border border-border font-medium text-green-600 dark:text-green-400">
                     ${user.default_salary?.toLocaleString() || "0"}
                   </TableCell>
@@ -511,30 +505,9 @@ export function UsersTable() {
                   <Label>Password *</Label>
                   <Input name="password" type="password" required />
                 </div>
-                <div className="space-y-1">
-                  <Label>Role *</Label>
-                  <select
-                    name="role"
-                    required
-                    className="w-full border border-input rounded-md p-2"
-                  >
-                    <option value="">Select a role</option>
-                    <option value="CEO">CEO</option>
-                    <option value="Financial Director">
-                      Financial Director
-                    </option>
-                    <option value="Member">Member</option>
-                    <option value="Customer">Customer</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Company Code</Label>
-                  <Input name="company_code" />
-                </div>
-                <div className="space-y-1">
-                  <Label>Telegram ID</Label>
-                  <Input name="telegram_id" />
-                </div>
+                
+               
+               
                 <div className="space-y-1">
                   <Label>Default Salary</Label>
                   <Input

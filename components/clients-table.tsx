@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
+import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -53,20 +54,6 @@ import {
 
 import { Client } from "@/services/clientServices";
 
-// Frontend → Backend mapping
-/*
-const mapToBackend = (client: Partial<Client>): Partial<any> => {
-  const backend: any = {}
-  if (client.full_name) backend.full_name = client.full_name
-  if (client.phone_number) backend.phone_number = client.phone_number
-  if (client.platform) backend.platform = client.platform // ✅ Fixed: was missing
-  if (client.status) backend.status = client.status
-  if (client.assistant_name) backend.assistant_name = client.assistant_name
-  if (client.notes) backend.notes = client.notes
-  return backend
-}
-*/
-
 // Status options
 const STATUS_OPTIONS = [
   { value: "need_to_call", label: "Need to Call" },
@@ -99,6 +86,8 @@ const getStatusVariant = (status?: string) => {
   }
 };
 
+
+
 // Utility: Get initials from full name
 const getInitials = (name: string) => {
   if (!name) return "?";
@@ -124,6 +113,12 @@ const formatDate = (dateString?: string) => {
   }
 };
 
+// Truncate text helper
+const truncateText = (text: string, maxLength: number = 30) => {
+  if (!text || text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + "...";
+};
+
 export function ClientsTable() {
   const clients = useClientStore((s) => s.clients);
   const loading = useClientStore((s) => s.loading);
@@ -133,16 +128,17 @@ export function ClientsTable() {
   const updateClient = useClientStore((s) => s.updateClient);
   const deleteClient = useClientStore((s) => s.deleteClient);
   const clearError = useClientStore((s) => s.clearError);
-
+const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [loadingDelete, setLoadingDelete] = React.useState(false);
   const [selectedClient, setSelectedClient] = React.useState<Client | null>(
     null
   );
   const [open, setOpen] = React.useState(false);
-  const [dialogMode, setDialogMode] = React.useState<"add" | "edit" | "delete">(
+  const [dialogMode, setDialogMode] = React.useState<"add" | "edit" | "delete" | "view-note">(
     "add"
   );
+  const [viewingNote, setViewingNote] = React.useState<string>("");
 
   React.useEffect(() => {
     fetchClients().catch(console.error);
@@ -169,6 +165,12 @@ export function ClientsTable() {
   const handleDeleteClient = (client: Client) => {
     setSelectedClient(client);
     setDialogMode("delete");
+    setOpen(true);
+  };
+
+  const handleViewNote = (note: string) => {
+    setViewingNote(note);
+    setDialogMode("view-note");
     setOpen(true);
   };
 
@@ -435,12 +437,16 @@ export function ClientsTable() {
                   </TableCell>
                   <TableCell>
                     {client.notes ? (
-                      <div className="flex items-center gap-1">
+                      <div 
+                        className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
+                        onClick={() => handleViewNote(client.notes!)}
+                        title="Click to view full note"
+                      >
                         <StickyNote
                           size={14}
-                          className="text-muted-foreground"
+                          className="text-muted-foreground flex-shrink-0"
                         />
-                        <span className="text-sm">{client.notes}</span>
+                        <span className="text-sm">{truncateText(client.notes)}</span>
                       </div>
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
@@ -736,6 +742,39 @@ export function ClientsTable() {
               </div>
             </>
           )}
+
+          {/* View Note Dialog */}
+          {dialogMode === "view-note" && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Client Note</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="bg-muted p-4 rounded-md max-h-96 overflow-y-auto">
+                  <p className="text-sm whitespace-pre-wrap">{viewingNote}</p>
+                </div>
+          
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(viewingNote || "");
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </Button>
+          
+                  <Button variant="outline" onClick={() => setOpen(false)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </>
+          )
+
+}
         </DialogContent>
       </Dialog>
     </div>

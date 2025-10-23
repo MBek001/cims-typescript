@@ -56,10 +56,11 @@ export default function RegisterForm() {
       email: values.email,
       name: values.name,
       surname: values.surname,
+      company_code: "test",
       password: values.password,
-      company_code: values.company_code,
-      telegram_id: values.telegram_id || undefined,
-      role: values.role,
+      
+      
+      role: "Member",
     };
 
     try {
@@ -128,33 +129,9 @@ export default function RegisterForm() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="company_code">Company code</Label>
-              <Input
-                id="company_code"
-                name="company_code"
-                defaultValue="oddiy"
-                required
-                disabled={pending}
-              />
-            </div>
+           
 
-            <div className="space-y-2">
-              <Label>Role</Label>
-              <Select value={role} onValueChange={setRole} disabled={pending}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {r}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <input type="hidden" name="role" value={role} />
-            </div>
+            
 
             <Separator />
 
@@ -183,6 +160,12 @@ export default function RegisterForm() {
                   autoComplete="new-password"
                 />
               </div>
+            </div>
+            <div className="mt-4 text-center text-sm pb-2">
+              Already have an account?{" "}
+              <a href="/login" className="underline underline-offset-4">
+                Login
+              </a>
             </div>
           </CardContent>
 

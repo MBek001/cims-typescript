@@ -4,6 +4,9 @@ import {
   IconDotsVertical,
   IconLogout,
   IconUserCircle,
+  IconMoon,
+  IconSun,
+  IconDeviceDesktop,
 } from "@tabler/icons-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -13,6 +16,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -21,8 +27,10 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { logoutUser } from "@/services/authServices"; // ✅ import logout service
-import { useRouter } from "next/navigation"; // for redirect after logout
+import { logoutUser } from "@/services/authServices";
+import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 
 export function NavUser({
   user,
@@ -35,13 +43,19 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleLogout = async () => {
-    await logoutUser(); // clear tokens + call backend if needed
-    router.push("/login"); // redirect to login page
+    await logoutUser();
+    router.push("/login");
   };
 
-  // Generate initials from user's name
   const getInitials = (name: string) => {
     const names = name.trim().split(" ");
     if (names.length === 1) {
@@ -53,6 +67,19 @@ export function NavUser({
   };
 
   const userInitials = getInitials(user.name);
+
+  const getThemeIcon = () => {
+    if (!mounted) return <IconSun className="size-4" />;
+    
+    switch (theme) {
+      case "dark":
+        return <IconMoon className="size-4" />;
+      case "light":
+        return <IconSun className="size-4" />;
+      default:
+        return <IconDeviceDesktop className="size-4" />;
+    }
+  };
 
   return (
     <SidebarMenu>
@@ -110,6 +137,26 @@ export function NavUser({
                 <IconCreditCard />
                 Billing
               </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  {getThemeIcon()}
+                  Theme
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => setTheme("light")}>
+                    <IconSun className="size-4" />
+                    Light
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme("dark")}>
+                    <IconMoon className="size-4" />
+                    Dark
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme("system")}>
+                    <IconDeviceDesktop className="size-4" />
+                    System
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>

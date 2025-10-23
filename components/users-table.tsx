@@ -1,4 +1,5 @@
 "use client";
+import { CreateUserPayload } from "@/lib/types";
 import * as React from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -24,7 +25,7 @@ import {
 import {
   MoreHorizontal,
   Mail,
-  User,
+  User as UserIcon,
   GripVertical,
   Edit,
   Trash,
@@ -42,32 +43,21 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "./ui/input";
 import { toast } from "sonner";
-import {
-  updateUser,
-  deleteUser,
-  addUser,
-  CreateUserPayload,
-} from "@/services/userServices";
+import { updateUser, deleteUser, addUser } from "@/services/userServices";
 import { usePermissions } from "@/hooks/usePermissions";
 
 // 🔑 Exact permission keys
-const PERMISSION_KEYS = ["ceo", "payment_list", "project_toggle", "crm", "finance_list"] as const;
+const PERMISSION_KEYS = [
+  "ceo",
+  "payment_list",
+  "project_toggle",
+  "crm",
+  "finance_list",
+] as const;
 type PermissionKey = (typeof PERMISSION_KEYS)[number];
 type PermissionsData = Record<PermissionKey, boolean>;
 
-type User = {
-  id: string;
-  name: string;
-  surname: string;
-  email: string;
-  avatar?: string;
-  role: string;
-  company_code?: string;
-  telegram_id?: string;
-  password?: string;
-  default_salary?: number;
-  is_active: boolean;
-};
+import type { User } from "@/lib/types";
 
 export function UsersTable() {
   const users = useDashboardStore((s) => s.users);
@@ -85,7 +75,8 @@ export function UsersTable() {
   >("edit");
 
   // ✅ Do NOT initialize to false — keep null until API responds
-  const [permissionsData, setPermissionsData] = React.useState<PermissionsData | null>(null);
+  const [permissionsData, setPermissionsData] =
+    React.useState<PermissionsData | null>(null);
 
   const {
     data: permissions,
@@ -97,8 +88,7 @@ export function UsersTable() {
 
   // ✅ Sync permissions ONLY when API returns data
   // In your UsersTable component, update this useEffect:
-  
-  
+
   React.useEffect(() => {
     // Only initialize permissionsData when:
     // 1. We are in "permissions" dialog mode
@@ -118,8 +108,6 @@ export function UsersTable() {
     }
     // Important: depend on both `permissions` AND `dialogMode`
   }, [permissions, dialogMode]);
-
-
 
   const getInitials = (name: string, surname: string) => {
     return `${name?.charAt(0) || ""}${surname?.charAt(0) || ""}`.toUpperCase();
@@ -339,8 +327,7 @@ export function UsersTable() {
               <TableHead className="px-4 py-2 text-left text-sm font-semibold text-muted-foreground whitespace-nowrap border border-border">
                 Role
               </TableHead>
-              
-              
+
               <TableHead className="px-4 py-2 text-left text-sm font-semibold text-muted-foreground whitespace-nowrap border border-border">
                 Salary
               </TableHead>
@@ -396,15 +383,14 @@ export function UsersTable() {
                         user.role === "CEO"
                           ? "bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400"
                           : user.role === "Financial Director"
-                          ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400"
-                          : "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400"
+                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400"
+                            : "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400"
                       }`}
                     >
                       {user.role}
                     </span>
                   </TableCell>
-                  
-                  
+
                   <TableCell className="border border-border font-medium text-green-600 dark:text-green-400">
                     ${user.default_salary?.toLocaleString() || "0"}
                   </TableCell>
@@ -453,7 +439,7 @@ export function UsersTable() {
                           Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem className="cursor-pointer text-sm">
-                          <User size={14} className="mr-2" />
+                          <UserIcon size={14} className="mr-2" />
                           View Profile
                         </DropdownMenuItem>
                         <DropdownMenuItem
@@ -505,9 +491,7 @@ export function UsersTable() {
                   <Label>Password *</Label>
                   <Input name="password" type="password" required />
                 </div>
-                
-               
-               
+
                 <div className="space-y-1">
                   <Label>Default Salary</Label>
                   <Input
@@ -554,7 +538,7 @@ export function UsersTable() {
                   e.preventDefault();
                   if (isSaving) return;
                   const formData = new FormData(
-                    e.currentTarget as HTMLFormElement
+                    e.currentTarget as HTMLFormElement,
                   );
                   const payload: Partial<{
                     email: string;
@@ -739,7 +723,8 @@ export function UsersTable() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Shield size={18} />
-                  Manage Permissions - {selectedUser.name} {selectedUser.surname}
+                  Manage Permissions - {selectedUser.name}{" "}
+                  {selectedUser.surname}
                 </DialogTitle>
               </DialogHeader>
 
@@ -765,9 +750,7 @@ export function UsersTable() {
                 </div>
               ) : permissionsData === null ? (
                 <div className="flex items-center justify-center py-8">
-                  <p className="text-sm text-muted-foreground">
-                    Loading...
-                  </p>
+                  <p className="text-sm text-muted-foreground">Loading...</p>
                 </div>
               ) : (
                 <div className="space-y-4">

@@ -1,19 +1,12 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Toaster } from "@/components/ui/sonner";
-import { useState } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import * as React from "react"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Toaster } from "sonner"
+import { useState } from "react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,38 +14,17 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  MoreHorizontal,
-  Edit,
-  Trash,
-  Loader2,
-  Plus,
-  Phone,
-  Building,
-  User,
-  StickyNote,
-} from "lucide-react";
-import useClientStore from "@/stores/useClientStore";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui/dropdown-menu"
+import { MoreHorizontal, Edit, Trash, Loader2, Plus, Phone, Building, User, StickyNote, Search, X } from "lucide-react"
+import useClientStore from "@/stores/useClientStore"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "sonner"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-import { Client } from "@/services/clientServices";
+import type { Client } from "@/services/clientServices"
 
 // Status options
 const STATUS_OPTIONS = [
@@ -62,156 +34,173 @@ const STATUS_OPTIONS = [
   { value: "continuing", label: "Continuing" },
   { value: "finished", label: "Finished" },
   { value: "rejected", label: "Rejected" },
-] as const;
+] as const
 
 const getStatusLabel = (value?: string): string => {
-  return STATUS_OPTIONS.find((s) => s.value === value)?.label || "Unknown";
-};
+  return STATUS_OPTIONS.find((s) => s.value === value)?.label || "Unknown"
+}
 
 const getStatusVariant = (status?: string) => {
-  if (!status) return "outline";
+  if (!status) return "outline"
   switch (status) {
     case "contacted":
     case "need_to_call":
-      return "default";
+      return "default"
     case "project_started":
     case "continuing":
-      return "success";
+      return "success"
     case "finished":
-      return "secondary";
+      return "secondary"
     case "rejected":
-      return "destructive";
+      return "destructive"
     default:
-      return "outline";
+      return "outline"
   }
-};
-
-
+}
 
 // Utility: Get initials from full name
 const getInitials = (name: string) => {
-  if (!name) return "?";
+  if (!name) return "?"
   return name
     .split(" ")
     .map((n) => n.charAt(0))
     .join("")
     .toUpperCase()
-    .slice(0, 2);
-};
+    .slice(0, 2)
+}
 
 // Format date for display
 const formatDate = (dateString?: string) => {
-  if (!dateString) return "-";
+  if (!dateString) return "-"
   try {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
-    });
+    })
   } catch {
-    return "-";
+    return "-"
   }
-};
+}
 
 // Truncate text helper
-const truncateText = (text: string, maxLength: number = 30) => {
-  if (!text || text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + "...";
-};
+const truncateText = (text: string, maxLength = 30) => {
+  if (!text || text.length <= maxLength) return text
+  return text.substring(0, maxLength) + "..."
+}
 
 export function ClientsTable() {
-  const clients = useClientStore((s) => s.clients);
-  const loading = useClientStore((s) => s.loading);
-  const error = useClientStore((s) => s.error);
-  const fetchClients = useClientStore((s) => s.fetchClients);
-  const addClient = useClientStore((s) => s.addClient);
-  const updateClient = useClientStore((s) => s.updateClient);
-  const deleteClient = useClientStore((s) => s.deleteClient);
-  const clearError = useClientStore((s) => s.clearError);
-const [copied, setCopied] = useState(false);
-  const [isSaving, setIsSaving] = React.useState(false);
-  const [loadingDelete, setLoadingDelete] = React.useState(false);
-  const [selectedClient, setSelectedClient] = React.useState<Client | null>(
-    null
-  );
-  const [open, setOpen] = React.useState(false);
-  const [dialogMode, setDialogMode] = React.useState<"add" | "edit" | "delete" | "view-note">(
-    "add"
-  );
-  const [viewingNote, setViewingNote] = React.useState<string>("");
+  const clients = useClientStore((s) => s.filteredClients)
+  const loading = useClientStore((s) => s.loading)
+  const error = useClientStore((s) => s.error)
+  const fetchClients = useClientStore((s) => s.fetchClients)
+  const addClient = useClientStore((s) => s.addClient)
+  const updateClient = useClientStore((s) => s.updateClient)
+  const deleteClient = useClientStore((s) => s.deleteClient)
+  const clearError = useClientStore((s) => s.clearError)
+
+  // Get URL parameters
+  const searchParams = new URLSearchParams(window.location.search)
+  const urlSearch = searchParams.get("search") || ""
+  const urlStatus = searchParams.get("status_filter")
+  const showAll = searchParams.get("show_all") === "true"
+
+  const setSearch = useClientStore((s) => s.setSearch)
+  const setStatusFilter = useClientStore((s) => s.setStatusFilter)
+  const setPlatformFilter = useClientStore((s) => s.setPlatformFilter)
+  const setDateFilter = useClientStore((s) => s.setDateFilter)
+  const setPhoneFilter = useClientStore((s) => s.setPhoneFilter)
+  const clearFilters = useClientStore((s) => s.clearFilters)
+  const filters = useClientStore((s) => s.filters)
+
+  const [copied, setCopied] = useState(false)
+  const [isSaving, setIsSaving] = React.useState(false)
+  const [loadingDelete, setLoadingDelete] = React.useState(false)
+  const [selectedClient, setSelectedClient] = React.useState<Client | null>(null)
+  const [open, setOpen] = React.useState(false)
+  const [dialogMode, setDialogMode] = React.useState<"add" | "edit" | "delete" | "view-note">("add")
+  const [viewingNote, setViewingNote] = React.useState<string>("")
 
   React.useEffect(() => {
-    fetchClients().catch(console.error);
-  }, [fetchClients]);
+    fetchClients().catch(console.error)
+
+    // Initialize filters from URL parameters
+    if (urlSearch) {
+      setSearch(urlSearch)
+    }
+    if (urlStatus) {
+      setStatusFilter(urlStatus)
+    }
+  }, [fetchClients, urlSearch, urlStatus])
 
   React.useEffect(() => {
     if (open) {
-      clearError();
+      clearError()
     }
-  }, [open, clearError]);
+  }, [open, clearError])
 
   const handleAddClient = () => {
-    setSelectedClient(null);
-    setDialogMode("add");
-    setOpen(true);
-  };
+    setSelectedClient(null)
+    setDialogMode("add")
+    setOpen(true)
+  }
 
   const handleEditClient = (client: Client) => {
-    setSelectedClient(client);
-    setDialogMode("edit");
-    setOpen(true);
-  };
+    setSelectedClient(client)
+    setDialogMode("edit")
+    setOpen(true)
+  }
 
   const handleDeleteClient = (client: Client) => {
-    setSelectedClient(client);
-    setDialogMode("delete");
-    setOpen(true);
-  };
+    setSelectedClient(client)
+    setDialogMode("delete")
+    setOpen(true)
+  }
 
   const handleViewNote = (note: string) => {
-    setViewingNote(note);
-    setDialogMode("view-note");
-    setOpen(true);
-  };
+    setViewingNote(note)
+    setDialogMode("view-note")
+    setOpen(true)
+  }
 
   const handleConfirmDelete = async () => {
-    if (!selectedClient) return;
-    setLoadingDelete(true);
+    if (!selectedClient) return
+    setLoadingDelete(true)
     try {
-      await deleteClient(selectedClient.id);
-      toast.success("Client deleted successfully");
-      setOpen(false);
-      setSelectedClient(null);
+      await deleteClient(selectedClient.id)
+      toast.success("Client deleted successfully")
+      setOpen(false)
+      setSelectedClient(null)
     } catch (err) {
       if (err instanceof Error) {
-        toast.error(err.message || "Failed to delete client");
+        toast.error(err.message || "Failed to delete client")
       } else {
-        toast.error("An unknown error occurred while deleting client.");
+        toast.error("An unknown error occurred while deleting client.")
       }
     } finally {
-      setLoadingDelete(false);
+      setLoadingDelete(false)
     }
-  };
+  }
 
   const handleAddClientSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (isSaving) return;
+    e.preventDefault()
+    if (isSaving) return
 
-    const formData = new FormData(e.currentTarget);
-    const full_name = formData.get("full_name") as string;
-    const phone_number = formData.get("phone_number") as string;
-    const platform = formData.get("platform") as string;
-    const status = formData.get("status") as string;
-    const assistant_name = formData.get("assistant_name") as string;
-    const notes = formData.get("notes") as string;
+    const formData = new FormData(e.currentTarget)
+    const full_name = formData.get("full_name") as string
+    const phone_number = formData.get("phone_number") as string
+    const platform = formData.get("platform") as string
+    const status = formData.get("status") as string
+    const assistant_name = formData.get("assistant_name") as string
+    const notes = formData.get("notes") as string
 
     // Validation
     if (!full_name || !platform) {
-      toast.error("Full name and platform are required.");
-      return;
+      toast.error("Full name and platform are required.")
+      return
     }
 
-    setIsSaving(true);
+    setIsSaving(true)
     try {
       const payload: Omit<Client, "id" | "created_at" | "updated_at"> = {
         full_name,
@@ -221,29 +210,27 @@ const [copied, setCopied] = useState(false);
         status,
         assistant_name,
         notes,
-      };
+      }
 
-      await addClient(payload);
-      toast.success("Client added successfully");
-      setOpen(false);
+      await addClient(payload)
+      toast.success("Client added successfully")
+      setOpen(false)
     } catch (err) {
       if (err instanceof Error) {
-        toast.error(err.message || "Failed to add client");
+        toast.error(err.message || "Failed to add client")
       } else {
-        toast.error("An unknown error occurred while adding client.");
+        toast.error("An unknown error occurred while adding client.")
       }
     } finally {
-      setIsSaving(false);
+      setIsSaving(false)
     }
-  };
+  }
 
-  const handleEditClientSubmit = async (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
-    e.preventDefault();
-    if (isSaving || !selectedClient) return;
+  const handleEditClientSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (isSaving || !selectedClient) return
 
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(e.currentTarget)
     const payload: Partial<Client> = {
       full_name: formData.get("full_name") as string,
       phone_number: formData.get("phone_number") as string,
@@ -251,49 +238,47 @@ const [copied, setCopied] = useState(false);
       status: formData.get("status") as string,
       assistant_name: formData.get("assistant_name") as string,
       notes: formData.get("notes") as string,
-    };
+    }
 
-    setIsSaving(true);
+    setIsSaving(true)
     try {
-      await updateClient(selectedClient.id, payload);
-      toast.success("Client updated successfully");
-      setOpen(false);
-      setSelectedClient(null);
+      await updateClient(selectedClient.id, payload)
+      toast.success("Client updated successfully")
+      setOpen(false)
+      setSelectedClient(null)
     } catch (err) {
       if (err instanceof Error) {
-        toast.error(err.message || "Failed to update client");
+        toast.error(err.message || "Failed to update client")
       } else {
-        toast.error("An unknown error occurred while updating client.");
+        toast.error("An unknown error occurred while updating client.")
       }
     } finally {
-      setIsSaving(false);
+      setIsSaving(false)
     }
-  };
+  }
 
   const handleDialogClose = (isOpen: boolean) => {
     if (!isOpen && !isSaving && !loadingDelete) {
-      setOpen(false);
-      setSelectedClient(null);
-      clearError();
+      setOpen(false)
+      setSelectedClient(null)
+      clearError()
     }
-  };
+  }
 
   // Loading state
-  if (loading) {
+  if (loading && clients.length === 0) {
     return (
       <div className="mx-4 my-6">
         <div className="border border-border rounded-md overflow-x-auto bg-card">
           <div className="flex items-center justify-center p-12">
             <div className="text-center space-y-3">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="text-sm text-muted-foreground">
-                Loading clients...
-              </p>
+              <p className="text-sm text-muted-foreground">Loading clients...</p>
             </div>
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   // Error state
@@ -303,19 +288,13 @@ const [copied, setCopied] = useState(false);
         <div className="border border-border rounded-md overflow-x-auto bg-card">
           <div className="flex items-center justify-center p-12">
             <div className="text-center space-y-3">
-              <div className="text-destructive font-medium">
-                Error Loading Clients
-              </div>
+              <div className="text-destructive font-medium">Error Loading Clients</div>
               <p className="text-sm text-muted-foreground">{error}</p>
               <div className="flex gap-2 justify-center">
                 <Button variant="outline" size="sm" onClick={clearError}>
                   Dismiss
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fetchClients()}
-                >
+                <Button variant="outline" size="sm" onClick={() => fetchClients()}>
                   Try Again
                 </Button>
               </div>
@@ -323,7 +302,7 @@ const [copied, setCopied] = useState(false);
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -331,17 +310,171 @@ const [copied, setCopied] = useState(false);
       <Toaster richColors position="top-right" />
 
       {/* Header */}
-      <div className="mb-4 flex justify-between items-center">
+      <div className="mb-6 flex justify-between items-center">
         <div>
           <h2 className="text-xl font-semibold">Clients</h2>
-          <p className="text-sm text-muted-foreground">
-            Manage your clients ({clients?.length || 0} total)
-          </p>
+          <p className="text-sm text-muted-foreground">Manage your clients ({clients?.length || 0} total)</p>
         </div>
         <Button onClick={handleAddClient} className="flex items-center gap-2">
           <Plus size={16} />
           Add Client
         </Button>
+      </div>
+
+      <div className="mb-6 space-y-4 bg-muted/30 p-4 rounded-lg border border-border">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Filters</h3>
+          {(filters.search || filters.status || filters.platform || filters.phoneNumber || filters.dateRange) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                clearFilters()
+                window.history.pushState({}, "", window.location.pathname)
+              }}
+              className="text-xs"
+            >
+              <X size={14} className="mr-1" />
+              Clear All
+            </Button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* Search by name */}
+          <div className="space-y-2">
+            <Label htmlFor="search" className="text-xs">
+              Search Name
+            </Label>
+            <div className="relative">
+              <Search size={14} className="absolute left-2 top-2.5 text-muted-foreground" />
+              <Input
+                id="search"
+                placeholder="Search by name..."
+                defaultValue={urlSearch}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setSearch(value)
+                  const params = new URLSearchParams(window.location.search)
+                  if (value) {
+                    params.set("search", value)
+                  } else {
+                    params.delete("search")
+                  }
+                  window.history.pushState({}, "", `${window.location.pathname}?${params}`)
+                }}
+                className="pl-8 h-9 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Search by phone */}
+          <div className="space-y-2">
+            <Label htmlFor="phone" className="text-xs">
+              Phone Number
+            </Label>
+            <div className="relative">
+              <Phone size={14} className="absolute left-2 top-2.5 text-muted-foreground" />
+              <Input
+                id="phone"
+                placeholder="Search by phone..."
+                value={filters.phoneNumber}
+                onChange={(e) => setPhoneFilter(e.target.value)}
+                className="pl-8 h-9 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Filter by status */}
+          <div className="space-y-2">
+            <Label htmlFor="status-filter" className="text-xs">
+              Status
+            </Label>
+            <Select
+              value={urlStatus || "all"}
+              onValueChange={(value) => {
+                const status = value === "all" ? null : value
+                setStatusFilter(status)
+                const params = new URLSearchParams(window.location.search)
+                if (status) {
+                  params.set("status_filter", status)
+                } else {
+                  params.delete("status_filter")
+                }
+                window.history.pushState({}, "", `${window.location.pathname}?${params}`)
+              }}
+            >
+              <SelectTrigger id="status-filter" className="h-9 text-sm">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {STATUS_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filter by platform */}
+          <div className="space-y-2">
+            <Label htmlFor="platform-filter" className="text-xs">
+              Platform
+            </Label>
+            <Select
+              value={filters.platform || "all"}
+              onValueChange={(value) => setPlatformFilter(value === "all" ? null : value)}
+            >
+              <SelectTrigger id="platform-filter" className="h-9 text-sm">
+                <SelectValue placeholder="All platforms" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Platforms</SelectItem>
+                <SelectItem value="Instagram">Instagram</SelectItem>
+                <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                <SelectItem value="Facebook">Facebook</SelectItem>
+                <SelectItem value="Telegram">Telegram</SelectItem>
+                <SelectItem value="Email">Email</SelectItem>
+                <SelectItem value="Phone">Phone</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filter by date range */}
+          <div className="space-y-2">
+            <Label htmlFor="date-from" className="text-xs">
+              Date Range
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="date-from"
+                type="date"
+                value={filters.dateRange?.start || ""}
+                onChange={(e) => {
+                  const end = filters.dateRange?.end || ""
+                  if (e.target.value && end) {
+                    setDateFilter(e.target.value, end)
+                  }
+                }}
+                className="h-9 text-sm flex-1"
+              />
+              <Input
+                id="date-to"
+                type="date"
+                value={filters.dateRange?.end || ""}
+                onChange={(e) => {
+                  const start = filters.dateRange?.start || ""
+                  if (start && e.target.value) {
+                    setDateFilter(start, e.target.value)
+                  }
+                }}
+                className="h-9 text-sm flex-1"
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
@@ -362,17 +495,10 @@ const [copied, setCopied] = useState(false);
           <TableBody>
             {!clients || clients.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={8}
-                  className="text-center py-8 text-muted-foreground"
-                >
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   <div className="flex flex-col items-center space-y-2">
                     <p>No clients found</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAddClient}
-                    >
+                    <Button variant="outline" size="sm" onClick={handleAddClient}>
                       Add your first client
                     </Button>
                   </div>
@@ -380,17 +506,12 @@ const [copied, setCopied] = useState(false);
               </TableRow>
             ) : (
               clients.map((client, index) => (
-                <TableRow
-                  key={client.id || `client-${index}`}
-                  className="hover:bg-muted/50"
-                >
+                <TableRow key={client.id || `client-${index}`} className="hover:bg-muted/50">
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="h-9 w-9">
-                        <AvatarImage src="" alt={client.full_name} />
-                        <AvatarFallback className="text-xs">
-                          {getInitials(client.full_name)}
-                        </AvatarFallback>
+                        <AvatarImage src="/placeholder.svg" alt={client.full_name} />
+                        <AvatarFallback className="text-xs">{getInitials(client.full_name)}</AvatarFallback>
                       </Avatar>
                       <div className="font-medium">{client.full_name}</div>
                     </div>
@@ -418,10 +539,7 @@ const [copied, setCopied] = useState(false);
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant={getStatusVariant(client.status)}
-                      className="text-xs"
-                    >
+                    <Badge variant={getStatusVariant(client.status)} className="text-xs">
                       {getStatusLabel(client.status)}
                     </Badge>
                   </TableCell>
@@ -437,15 +555,12 @@ const [copied, setCopied] = useState(false);
                   </TableCell>
                   <TableCell>
                     {client.notes ? (
-                      <div 
+                      <div
                         className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
                         onClick={() => handleViewNote(client.notes!)}
                         title="Click to view full note"
                       >
-                        <StickyNote
-                          size={14}
-                          className="text-muted-foreground flex-shrink-0"
-                        />
+                        <StickyNote size={14} className="text-muted-foreground flex-shrink-0" />
                         <span className="text-sm">{truncateText(client.notes)}</span>
                       </div>
                     ) : (
@@ -456,20 +571,14 @@ const [copied, setCopied] = useState(false);
                   <TableCell className="text-center">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                        >
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                           <MoreHorizontal size={14} />
                           <span className="sr-only">Open menu</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-40">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem
-                          onClick={() => handleEditClient(client)}
-                        >
+                        <DropdownMenuItem onClick={() => handleEditClient(client)}>
                           <Edit size={14} className="mr-2" />
                           Edit
                         </DropdownMenuItem>
@@ -494,7 +603,6 @@ const [copied, setCopied] = useState(false);
       {/* Dialog */}
       <Dialog open={open} onOpenChange={handleDialogClose}>
         <DialogContent className="max-w-lg">
-          {/* Add Client */}
           {dialogMode === "add" && (
             <>
               <DialogHeader>
@@ -504,32 +612,19 @@ const [copied, setCopied] = useState(false);
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="full_name">Full Name *</Label>
-                    <Input
-                      id="full_name"
-                      name="full_name"
-                      placeholder="Enter full name"
-                      required
-                    />
+                    <Input id="full_name" name="full_name" placeholder="Enter full name" required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone_number">Phone</Label>
-                    <Input
-                      id="phone_number"
-                      name="phone_number"
-                      placeholder="Enter phone number"
-                    />
+                    <Input id="phone_number" name="phone_number" placeholder="Enter phone number" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="platform">Platform</Label>
-                    <Input
-                      id="platform"
-                      name="platform"
-                      placeholder="e.g., Instagram, WhatsApp"
-                    />
+                    <Input id="platform" name="platform" placeholder="e.g., Instagram, WhatsApp" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="status">Status</Label>
-                    <Select name="status" defaultValue="">
+                    <Select name="status" defaultValue="need_to_call">
                       <SelectTrigger>
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
@@ -544,27 +639,14 @@ const [copied, setCopied] = useState(false);
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="assistant">Assistant</Label>
-                    <Input
-                      id="assistant_name"
-                      name="assistant_name"
-                      placeholder="Assigned assistant"
-                    />
+                    <Input id="assistant_name" name="assistant_name" placeholder="Assigned assistant" />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="notes">Notes</Label>
-                  <Textarea
-                    id="notes"
-                    name="notes"
-                    rows={3}
-                    placeholder="Add notes about the client..."
-                  />
+                  <Textarea id="notes" name="notes" rows={3} placeholder="Add notes about the client..." />
                 </div>
-                {error && (
-                  <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
-                    {error}
-                  </div>
-                )}
+                {error && <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">{error}</div>}
                 <div className="flex gap-2 pt-4">
                   <Button
                     type="button"
@@ -590,7 +672,6 @@ const [copied, setCopied] = useState(false);
             </>
           )}
 
-          {/* Edit Client */}
           {dialogMode === "edit" && selectedClient && (
             <>
               <DialogHeader>
@@ -628,10 +709,7 @@ const [copied, setCopied] = useState(false);
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="status">Status</Label>
-                    <Select
-                      name="status"
-                      defaultValue={selectedClient.status || ""}
-                    >
+                    <Select name="status" defaultValue={selectedClient.status || "need_to_call"}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
@@ -664,11 +742,7 @@ const [copied, setCopied] = useState(false);
                     placeholder="Add notes about the client..."
                   />
                 </div>
-                {error && (
-                  <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
-                    {error}
-                  </div>
-                )}
+                {error && <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">{error}</div>}
                 <div className="flex gap-2 pt-4">
                   <Button
                     type="button"
@@ -694,7 +768,6 @@ const [copied, setCopied] = useState(false);
             </>
           )}
 
-          {/* Delete Confirmation */}
           {dialogMode === "delete" && selectedClient && (
             <>
               <DialogHeader>
@@ -702,17 +775,10 @@ const [copied, setCopied] = useState(false);
               </DialogHeader>
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Are you sure you want to delete{" "}
-                  <span className="font-medium">
-                    {selectedClient.full_name}
-                  </span>
-                  ? This action cannot be undone.
+                  Are you sure you want to delete <span className="font-medium">{selectedClient.full_name}</span>? This
+                  action cannot be undone.
                 </p>
-                {error && (
-                  <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
-                    {error}
-                  </div>
-                )}
+                {error && <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">{error}</div>}
                 <div className="flex gap-2 pt-4">
                   <Button
                     type="button"
@@ -743,7 +809,6 @@ const [copied, setCopied] = useState(false);
             </>
           )}
 
-          {/* View Note Dialog */}
           {dialogMode === "view-note" && (
             <>
               <DialogHeader>
@@ -753,30 +818,28 @@ const [copied, setCopied] = useState(false);
                 <div className="bg-muted p-4 rounded-md max-h-96 overflow-y-auto">
                   <p className="text-sm whitespace-pre-wrap">{viewingNote}</p>
                 </div>
-          
+
                 <div className="flex justify-end gap-2">
                   <Button
                     variant="secondary"
                     onClick={async () => {
-                      await navigator.clipboard.writeText(viewingNote || "");
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
+                      await navigator.clipboard.writeText(viewingNote || "")
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 2000)
                     }}
                   >
                     {copied ? "Copied" : "Copy"}
                   </Button>
-          
+
                   <Button variant="outline" onClick={() => setOpen(false)}>
                     Close
                   </Button>
                 </div>
               </div>
             </>
-          )
-
-}
+          )}
         </DialogContent>
       </Dialog>
     </div>
-  );
+  )
 }

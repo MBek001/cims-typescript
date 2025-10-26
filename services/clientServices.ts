@@ -1,51 +1,50 @@
-// services/clientService.ts
-import api from "@/lib/api"
+import api from "@/lib/api";
 
 // Backend response interface
 export interface BackendClient {
-  id: number
-  full_name: string
-  platform: string
-  username: string
-  phone_number: string
-  status: string
-  assistant_name: string
-  notes: string
-  created_at: string
-  updated_at?: string
+  id: number;
+  full_name: string;
+  platform: string;
+  username: string;
+  phone_number: string;
+  status: string;
+  assistant_name: string;
+  notes: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 // Frontend interface
 export interface Client {
-  id: number | string
-  full_name: string
-  username: string
-  platform: string
-  phone_number: string
-  status: string
-  assistant_name: string
-  notes: string
-  created_at: string
-  updated_at: string
+  id: number | string;
+  full_name: string;
+  username: string;
+  platform: string;
+  phone_number: string;
+  status: string;
+  assistant_name: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // Dashboard API response
 export interface DashboardResponse {
-  customers: BackendClient[]
+  customers: BackendClient[];
   status_stats: {
-    total_customers: number
-    need_to_call: number
-    contacted: number
-    project_started: number
-    continuing: number
-    finished: number
-    rejected: number
-  }
-  status_dict: Record<string, number>
-  status_percentages: Record<string, number>
-  status_choices: Array<{ value: string; label: string }>
-  permissions: string[]
-  selected_status: string | null
+    total_customers: number;
+    need_to_call: number;
+    contacted: number;
+    project_started: number;
+    continuing: number;
+    finished: number;
+    rejected: number;
+  };
+  status_dict: Record<string, number>;
+  status_percentages: Record<string, number>;
+  status_choices: Array<{ value: string; label: string }>;
+  permissions: string[];
+  selected_status: string | null;
 }
 
 // Transform: backend → frontend
@@ -60,65 +59,209 @@ const transformBackendToFrontend = (backend: BackendClient): Client => ({
   notes: backend.notes,
   created_at: backend.created_at,
   updated_at: backend.updated_at ?? backend.created_at,
-})
+});
 
 // Transform: frontend → backend
-const transformFrontendToBackend = (client: Partial<Client>): Partial<BackendClient> => {
-  const backend: Partial<BackendClient> = {}
+const transformFrontendToBackend = (
+  client: Partial<Client>,
+): Partial<BackendClient> => {
+  const backend: Partial<BackendClient> = {};
 
-  if (client.full_name !== undefined) backend.full_name = client.full_name
-  if (client.platform !== undefined) backend.platform = client.platform
-  if (client.username !== undefined) backend.username = client.username
-  if (client.phone_number !== undefined) backend.phone_number = client.phone_number
-  if (client.status !== undefined) backend.status = client.status
+  if (client.full_name !== undefined) backend.full_name = client.full_name;
+  if (client.platform !== undefined) backend.platform = client.platform;
+  if (client.username !== undefined) backend.username = client.username;
+  if (client.phone_number !== undefined)
+    backend.phone_number = client.phone_number;
+  if (client.status !== undefined) backend.status = client.status;
   if (client.assistant_name !== undefined && client.assistant_name !== null) {
-    backend.assistant_name = client.assistant_name
+    backend.assistant_name = client.assistant_name;
   }
-  if (client.notes !== undefined) backend.notes = client.notes
+  if (client.notes !== undefined) backend.notes = client.notes;
 
-  return backend
-}
+  return backend;
+};
 
+// GET all clients with optional filters
+export const getClients = async (filters?: {
+  search?: string;
+  status?: string;
+  platform?: string;
+  phone?: string;
+  date_from?: string;
+  date_to?: string;
+}): Promise<Client[]> => {
+  const params = new URLSearchParams();
 
-// GET all clients
-export const getClients = async (): Promise<Client[]> => {
-  const res = await api.get<DashboardResponse>("/crm/dashboard")
-  return res.data.customers.map(transformBackendToFrontend)
-}
+  if (filters?.search) params.append("search", filters.search);
+  if (filters?.status) params.append("status", filters.status);
+  if (filters?.platform) params.append("platform", filters.platform);
+  if (filters?.phone) params.append("phone", filters.phone);
+  if (filters?.date_from) params.append("date_from", filters.date_from);
+  if (filters?.date_to) params.append("date_to", filters.date_to);
+
+  const url = `/crm/dashboard${params.toString() ? `?${params.toString()}` : ""}`;
+  const res = await api.get<DashboardResponse>(url);
+  return res.data.customers.map(transformBackendToFrontend);
+};
+
+// Search clients
+export const searchClients = async (
+  query: string,
+  existingClients?: Client[],
+): Promise<Client[]> => {
+  if (existingClients) {
+    return existingClients.filter(
+      (client) =>
+        client.full_name.toLowerCase().includes(query.toLowerCase()) ||
+        client.username.toLowerCase().includes(query.toLowerCase()),
+    );
+  }
+  const res = await api.get<DashboardResponse>(
+    `/crm/dashboard?search=${encodeURIComponent(query)}`,
+  );
+  return res.data.customers.map(transformBackendToFrontend);
+};
+
+// Filter by status
+export const filterClientsByStatus = async (
+  status: string,
+  existingClients?: Client[],
+): Promise<Client[]> => {
+  if (existingClients) {
+    return existingClients.filter((client) => client.status === status);
+  }
+  const res = await api.get<DashboardResponse>(
+    `/crm/dashboard?status=${encodeURIComponent(status)}`,
+  );
+  return res.data.customers.map(transformBackendToFrontend);
+};
+
+// Filter by platform
+export const filterClientsByPlatform = async (
+  platform: string,
+  existingClients?: Client[],
+): Promise<Client[]> => {
+  if (existingClients) {
+    return existingClients.filter((client) => client.platform === platform);
+  }
+  const res = await api.get<DashboardResponse>(
+    `/crm/dashboard?platform=${encodeURIComponent(platform)}`,
+  );
+  return res.data.customers.map(transformBackendToFrontend);
+};
+
+// Filter by date range
+export const filterClientsByDate = async (
+  startDate: string,
+  endDate: string,
+  existingClients?: Client[],
+): Promise<Client[]> => {
+  if (existingClients) {
+    return existingClients.filter((client) => {
+      const clientDate = new Date(client.created_at);
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      return clientDate >= start && clientDate <= end;
+    });
+  }
+  const res = await api.get<DashboardResponse>(
+    `/crm/dashboard?date_from=${encodeURIComponent(startDate)}&date_to=${encodeURIComponent(endDate)}`,
+  );
+  return res.data.customers.map(transformBackendToFrontend);
+};
+
+// Search by phone number
+export const searchClientsByPhone = async (
+  phone: string,
+  existingClients?: Client[],
+): Promise<Client[]> => {
+  if (existingClients) {
+    return existingClients.filter((client) =>
+      client.phone_number.includes(phone),
+    );
+  }
+  const res = await api.get<DashboardResponse>(
+    `/crm/dashboard?search=${encodeURIComponent(phone)}`,
+  );
+  return res.data.customers.map(transformBackendToFrontend);
+};
 
 // POST new client
 export const addClient = async (
-  data: Omit<Client, "id" | "created_at" | "updated_at">
+  data: Omit<Client, "id" | "created_at" | "updated_at">,
 ): Promise<Client> => {
-  const backendData = transformFrontendToBackend(data)
+  // Set default values for required fields
+  const clientData = {
+    ...data,
+    status: data.status || "Need to Call",
+    notes: data.notes || "",
+    assistant_name: data.assistant_name || "",
+    username:
+      data.username || data.full_name?.toLowerCase().replace(/\s+/g, ".") || "",
+    phone_number: data.phone_number || "",
+  };
 
-  // Ensure required fields
-  if (!backendData.full_name || !backendData.platform || !backendData.username) {
-    // Auto-generate username if missing
-    if (!backendData.username) {
-      backendData.username = (backendData.full_name || "user").toLowerCase().replace(/\s+/g, ".")
-    }
-    if (!backendData.full_name) throw new Error("Full name is required")
-    if (!backendData.platform) throw new Error("Platform is required")
+  const backendData = transformFrontendToBackend(clientData);
+
+  // Validate required fields
+  if (!backendData.full_name?.trim()) {
+    throw new Error("Full name is required");
+  }
+  if (!backendData.platform?.trim()) {
+    throw new Error("Platform is required");
   }
 
-  console.log("[addClient] Payload sent:", backendData)
-  const res = await api.post<BackendClient>("/crm/customers", backendData)
-  return transformBackendToFrontend(res.data)
-}
+  try {
+    const res = await api.post<BackendClient>("/crm/customers", backendData);
+    if (!res.data) {
+      throw new Error("No data received from server");
+    }
+    return transformBackendToFrontend(res.data);
+  } catch (error) {
+    throw error instanceof Error ? error : new Error("Failed to create client");
+  }
+};
 
 // PUT update client
 export const updateClient = async (
   id: string | number,
-  data: Partial<Client>
+  data: Partial<Client>,
 ): Promise<Client> => {
-  const backendData = transformFrontendToBackend(data)
-  console.log("[updateClient] Updating with:", backendData)
-  const res = await api.put<BackendClient>(`/crm/customers/${id}`, backendData)
-  return transformBackendToFrontend(res.data)
-}
+  // Validate required fields if they are being updated
+  if (data.full_name !== undefined && !data.full_name.trim()) {
+    throw new Error("Full name cannot be empty");
+  }
+  if (data.platform !== undefined && !data.platform.trim()) {
+    throw new Error("Platform cannot be empty");
+  }
+
+  // Transform and clean data
+  const clientData = {
+    ...data,
+    status: data.status || undefined,
+    notes: data.notes?.trim() || undefined,
+    assistant_name: data.assistant_name?.trim() || undefined,
+    username: data.username?.trim() || undefined,
+    phone_number: data.phone_number?.trim() || undefined,
+  };
+
+  const backendData = transformFrontendToBackend(clientData);
+
+  try {
+    const res = await api.put<BackendClient>(
+      `/crm/customers/${id}`,
+      backendData,
+    );
+    if (!res.data) {
+      throw new Error("No data received from server");
+    }
+    return transformBackendToFrontend(res.data);
+  } catch (error) {
+    throw error instanceof Error ? error : new Error("Failed to update client");
+  }
+};
 
 // DELETE client
 export const deleteClient = async (id: string | number): Promise<void> => {
-  await api.delete(`/crm/customers/${id}`)
-}
+  await api.delete(`/crm/customers/${id}`);
+};

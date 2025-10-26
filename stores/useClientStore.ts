@@ -45,19 +45,33 @@ interface ClientStore {
   clearFilters: () => Promise<void>;
 }
 
+// Helper function to safely get URL parameters (client-side only)
+const getUrlParam = (param: string): string | null => {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(param);
+};
+
+// Helper function to safely update URL (client-side only)
+const updateUrl = (searchParams?: URLSearchParams) => {
+  if (typeof window === "undefined") return;
+  const newUrl = searchParams
+    ? `${window.location.pathname}?${searchParams}`
+    : window.location.pathname;
+  window.history.pushState({}, "", newUrl);
+};
+
 const useClientStore = create<ClientStore>((set, get) => ({
   clients: [],
   filteredClients: [],
   loading: false,
   error: null,
   filters: {
-    search: new URLSearchParams(window.location.search).get("search") || "",
-    status: new URLSearchParams(window.location.search).get("status_filter"),
+    search: getUrlParam("search") || "",
+    status: getUrlParam("status_filter"),
     platform: null,
     dateRange: null,
     phoneNumber: "",
-    show_all:
-      new URLSearchParams(window.location.search).get("show_all") === "true",
+    show_all: getUrlParam("show_all") === "true",
   },
 
   fetchClients: async () => {
@@ -78,7 +92,6 @@ const useClientStore = create<ClientStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await apiAddClient(client);
-      // Refetch all clients to ensure we have fresh data
       const updatedClients = await getClients();
       set({
         clients: updatedClients,
@@ -92,8 +105,7 @@ const useClientStore = create<ClientStore>((set, get) => ({
           show_all: false,
         },
       });
-      // Clear URL params to match reset filters
-      window.history.pushState({}, "", window.location.pathname);
+      updateUrl();
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Failed to add client",
@@ -107,7 +119,6 @@ const useClientStore = create<ClientStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await apiUpdateClient(id, client);
-      // Refetch all clients to ensure we have fresh data
       const updatedClients = await getClients();
       set({
         clients: updatedClients,
@@ -121,8 +132,7 @@ const useClientStore = create<ClientStore>((set, get) => ({
           show_all: false,
         },
       });
-      // Clear URL params to match reset filters
-      window.history.pushState({}, "", window.location.pathname);
+      updateUrl();
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Failed to update client",
@@ -136,11 +146,10 @@ const useClientStore = create<ClientStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await apiDeleteClient(id);
-      const { clients } = get();
-      const newClients = clients.filter((c) => c.id !== id);
+      const updatedClients = await getClients();
       set({
-        clients: newClients,
-        filteredClients: newClients,
+        clients: updatedClients,
+        filteredClients: updatedClients,
         filters: {
           search: "",
           status: null,
@@ -150,28 +159,24 @@ const useClientStore = create<ClientStore>((set, get) => ({
           show_all: false,
         },
       });
-      // Clear URL params to match reset filters
-      window.history.pushState({}, "", window.location.pathname);
+      updateUrl();
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Failed to delete client",
+        loading: false,
       });
       throw err;
-    } finally {
-      set({ loading: false });
     }
   },
 
   clearError: () => set({ error: null }),
 
   setSearch: async (search) => {
-    const searchParams = new URLSearchParams(window.location.search);
-    searchParams.set("search", search);
-    window.history.pushState(
-      {},
-      "",
-      `${window.location.pathname}?${searchParams}`,
+    const searchParams = new URLSearchParams(
+      typeof window !== "undefined" ? window.location.search : "",
     );
+    searchParams.set("search", search);
+    updateUrl(searchParams);
 
     set((state) => ({ filters: { ...state.filters, search } }));
     const { filters } = get();
@@ -196,17 +201,15 @@ const useClientStore = create<ClientStore>((set, get) => ({
   },
 
   setStatusFilter: async (status) => {
-    const searchParams = new URLSearchParams(window.location.search);
+    const searchParams = new URLSearchParams(
+      typeof window !== "undefined" ? window.location.search : "",
+    );
     if (status) {
       searchParams.set("status_filter", status);
     } else {
       searchParams.delete("status_filter");
     }
-    window.history.pushState(
-      {},
-      "",
-      `${window.location.pathname}?${searchParams}`,
-    );
+    updateUrl(searchParams);
 
     set((state) => ({ filters: { ...state.filters, status } }));
     const { filters } = get();
@@ -289,7 +292,7 @@ const useClientStore = create<ClientStore>((set, get) => ({
   },
 
   clearFilters: async () => {
-    window.history.pushState({}, "", window.location.pathname);
+    updateUrl();
     set({
       filters: {
         search: "",

@@ -5,11 +5,13 @@ export interface BackendClient {
   id: number;
   full_name: string;
   platform: string;
-  username: string;
+  username: string | null;
   phone_number: string;
   status: string;
-  assistant_name: string;
-  notes: string;
+  assistant_name: string | null;
+  notes: string | null;
+  conversation_language: string | null;
+  audio: string | null;
   created_at: string;
   updated_at?: string;
 }
@@ -18,33 +20,31 @@ export interface BackendClient {
 export interface Client {
   id: number | string;
   full_name: string;
-  username: string;
+  username: string | null;
   platform: string;
   phone_number: string;
   status: string;
-  assistant_name: string;
-  notes: string;
+  assistant_name: string | null;
+  notes: string | null;
+  conversation_language: string | null;
+  audio: string | null;
   created_at: string;
   updated_at: string;
 }
 
-// Dashboard API response
+// Dashboard API response - matches actual API structure
 export interface DashboardResponse {
-  customers: BackendClient[];
-  status_stats: {
-    total_customers: number;
-    need_to_call: number;
-    contacted: number;
-    project_started: number;
-    continuing: number;
-    finished: number;
-    rejected: number;
-  };
-  status_dict: Record<string, number>;
-  status_percentages: Record<string, number>;
-  status_choices: Array<{ value: string; label: string }>;
-  permissions: string[];
-  selected_status: string | null;
+  customers?: BackendClient[];
+  sales?: BackendClient[];
+  total_customers: number;
+  need_to_call: number;
+  contacted: number;
+  project_started: number;
+  continuing: number;
+  finished: number;
+  rejected: number;
+  status_dict?: Record<string, number>;
+  status_percentages?: Record<string, number>;
 }
 
 // Transform: backend → frontend
@@ -57,6 +57,8 @@ const transformBackendToFrontend = (backend: BackendClient): Client => ({
   status: backend.status,
   assistant_name: backend.assistant_name,
   notes: backend.notes,
+  conversation_language: backend.conversation_language,
+  audio: backend.audio,
   created_at: backend.created_at,
   updated_at: backend.updated_at ?? backend.created_at,
 });
@@ -73,12 +75,28 @@ const transformFrontendToBackend = (
   if (client.phone_number !== undefined)
     backend.phone_number = client.phone_number;
   if (client.status !== undefined) backend.status = client.status;
-  if (client.assistant_name !== undefined && client.assistant_name !== null) {
+  if (client.assistant_name !== undefined) {
     backend.assistant_name = client.assistant_name;
   }
   if (client.notes !== undefined) backend.notes = client.notes;
+  if (client.conversation_language !== undefined) {
+    backend.conversation_language = client.conversation_language;
+  }
+  if (client.audio !== undefined) backend.audio = client.audio;
 
   return backend;
+};
+
+// Helper: safely extract customers from response
+const extractCustomers = (data: any): BackendClient[] => {
+  if (!data) return [];
+  
+  // Try different possible response structures
+  if (Array.isArray(data.customers)) return data.customers;
+  if (Array.isArray(data.sales)) return data.sales;
+  if (Array.isArray(data)) return data;
+  
+  return [];
 };
 
 // GET all clients with optional filters
@@ -90,18 +108,27 @@ export const getClients = async (filters?: {
   date_from?: string;
   date_to?: string;
 }): Promise<Client[]> => {
-  const params = new URLSearchParams();
+  try {
+    const params = new URLSearchParams();
 
-  if (filters?.search) params.append("search", filters.search);
-  if (filters?.status) params.append("status", filters.status);
-  if (filters?.platform) params.append("platform", filters.platform);
-  if (filters?.phone) params.append("phone", filters.phone);
-  if (filters?.date_from) params.append("date_from", filters.date_from);
-  if (filters?.date_to) params.append("date_to", filters.date_to);
+    if (filters?.search) params.append("search", filters.search);
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.platform) params.append("platform", filters.platform);
+    if (filters?.phone) params.append("phone", filters.phone);
+    if (filters?.date_from) params.append("date_from", filters.date_from);
+    if (filters?.date_to) params.append("date_to", filters.date_to);
 
-  const url = `/crm/dashboard${params.toString() ? `?${params.toString()}` : ""}`;
-  const res = await api.get<DashboardResponse>(url);
-  return res.data.customers.map(transformBackendToFrontend);
+    const url = `/crm/customers/latest?limit=100${params.toString() ? `&${params.toString()}` : ""}`;
+    const res = await api.get<DashboardResponse>(url);
+    
+    const customers = extractCustomers(res.data);
+    return customers.map(transformBackendToFrontend);
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      return [];
+    }
+    throw error;
+  }
 };
 
 // Search clients
@@ -113,13 +140,21 @@ export const searchClients = async (
     return existingClients.filter(
       (client) =>
         client.full_name.toLowerCase().includes(query.toLowerCase()) ||
-        client.username.toLowerCase().includes(query.toLowerCase()),
+        client.username?.toLowerCase().includes(query.toLowerCase()),
     );
   }
-  const res = await api.get<DashboardResponse>(
-    `/crm/dashboard?search=${encodeURIComponent(query)}`,
-  );
-  return res.data.customers.map(transformBackendToFrontend);
+  try {
+    const res = await api.get<DashboardResponse>(
+      `/crm/dashboard?search=${encodeURIComponent(query)}`,
+    );
+    const customers = extractCustomers(res.data);
+    return customers.map(transformBackendToFrontend);
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      return [];
+    }
+    throw error;
+  }
 };
 
 // Filter by status
@@ -130,10 +165,18 @@ export const filterClientsByStatus = async (
   if (existingClients) {
     return existingClients.filter((client) => client.status === status);
   }
-  const res = await api.get<DashboardResponse>(
-    `/crm/dashboard?status=${encodeURIComponent(status)}`,
-  );
-  return res.data.customers.map(transformBackendToFrontend);
+  try {
+    const res = await api.get<DashboardResponse>(
+      `/crm/dashboard?status=${encodeURIComponent(status)}`,
+    );
+    const customers = extractCustomers(res.data);
+    return customers.map(transformBackendToFrontend);
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      return [];
+    }
+    throw error;
+  }
 };
 
 // Filter by platform
@@ -144,10 +187,18 @@ export const filterClientsByPlatform = async (
   if (existingClients) {
     return existingClients.filter((client) => client.platform === platform);
   }
-  const res = await api.get<DashboardResponse>(
-    `/crm/dashboard?platform=${encodeURIComponent(platform)}`,
-  );
-  return res.data.customers.map(transformBackendToFrontend);
+  try {
+    const res = await api.get<DashboardResponse>(
+      `/crm/dashboard?platform=${encodeURIComponent(platform)}`,
+    );
+    const customers = extractCustomers(res.data);
+    return customers.map(transformBackendToFrontend);
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      return [];
+    }
+    throw error;
+  }
 };
 
 // Filter by date range
@@ -164,10 +215,18 @@ export const filterClientsByDate = async (
       return clientDate >= start && clientDate <= end;
     });
   }
-  const res = await api.get<DashboardResponse>(
-    `/crm/dashboard?date_from=${encodeURIComponent(startDate)}&date_to=${encodeURIComponent(endDate)}`,
-  );
-  return res.data.customers.map(transformBackendToFrontend);
+  try {
+    const res = await api.get<DashboardResponse>(
+      `/crm/dashboard?date_from=${encodeURIComponent(startDate)}&date_to=${encodeURIComponent(endDate)}`,
+    );
+    const customers = extractCustomers(res.data);
+    return customers.map(transformBackendToFrontend);
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      return [];
+    }
+    throw error;
+  }
 };
 
 // Search by phone number
@@ -180,42 +239,66 @@ export const searchClientsByPhone = async (
       client.phone_number.includes(phone),
     );
   }
-  const res = await api.get<DashboardResponse>(
-    `/crm/dashboard?search=${encodeURIComponent(phone)}`,
-  );
-  return res.data.customers.map(transformBackendToFrontend);
+  try {
+    const res = await api.get<DashboardResponse>(
+      `/crm/dashboard?search=${encodeURIComponent(phone)}`,
+    );
+    const customers = extractCustomers(res.data);
+    return customers.map(transformBackendToFrontend);
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      return [];
+    }
+    throw error;
+  }
 };
 
 // POST new client
 export const addClient = async (
   data: Omit<Client, "id" | "created_at" | "updated_at">,
 ): Promise<Client> => {
-  // Set default values for required fields
+  if (!data.full_name?.trim()) {
+    throw new Error("Full name is required");
+  }
+  if (!data.platform?.trim()) {
+    throw new Error("Platform is required");
+  }
+  if (!data.phone_number?.trim()) {
+    throw new Error("Phone number is required");
+  }
+  if (!data.status?.trim()) {
+    throw new Error("Status is required");
+  }
+
   const clientData = {
     ...data,
-    status: data.status || "Need to Call",
-    notes: data.notes || "",
-    assistant_name: data.assistant_name || "",
+    full_name: data.full_name.trim(),
+    platform: data.platform.trim(),
+    phone_number: data.phone_number.trim(),
+    status: data.status.trim(),
+    notes: data.notes || null,
+    assistant_name: data.assistant_name || null,
+    conversation_language: data.conversation_language || null,
+    audio: data.audio || null,
     username:
-      data.username || data.full_name?.toLowerCase().replace(/\s+/g, ".") || "",
-    phone_number: data.phone_number || "",
+      data.username || data.full_name.toLowerCase().replace(/\s+/g, "."),
   };
 
   const backendData = transformFrontendToBackend(clientData);
 
-  // Validate required fields
-  if (!backendData.full_name?.trim()) {
-    throw new Error("Full name is required");
-  }
-  if (!backendData.platform?.trim()) {
-    throw new Error("Platform is required");
-  }
-
   try {
-    const res = await api.post<BackendClient>("/crm/customers", backendData);
+    const res = await api.post<BackendClient>(
+      "/crm/customers",
+      backendData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      }
+    );
+  
     if (!res.data) {
       throw new Error("No data received from server");
     }
+  
     return transformBackendToFrontend(res.data);
   } catch (error) {
     throw error instanceof Error ? error : new Error("Failed to create client");
@@ -227,7 +310,6 @@ export const updateClient = async (
   id: string | number,
   data: Partial<Client>,
 ): Promise<Client> => {
-  // Validate required fields if they are being updated
   if (data.full_name !== undefined && !data.full_name.trim()) {
     throw new Error("Full name cannot be empty");
   }
@@ -235,12 +317,12 @@ export const updateClient = async (
     throw new Error("Platform cannot be empty");
   }
 
-  // Transform and clean data
   const clientData = {
     ...data,
     status: data.status || undefined,
-    notes: data.notes?.trim() || undefined,
-    assistant_name: data.assistant_name?.trim() || undefined,
+    notes: data.notes?.trim() || null,
+    assistant_name: data.assistant_name?.trim() || null,
+    conversation_language: data.conversation_language?.trim() || null,
     username: data.username?.trim() || undefined,
     phone_number: data.phone_number?.trim() || undefined,
   };
@@ -251,12 +333,18 @@ export const updateClient = async (
     const res = await api.put<BackendClient>(
       `/crm/customers/${id}`,
       backendData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      }
     );
+  
     if (!res.data) {
       throw new Error("No data received from server");
     }
+  
     return transformBackendToFrontend(res.data);
-  } catch (error) {
+  } 
+catch (error) {
     throw error instanceof Error ? error : new Error("Failed to update client");
   }
 };

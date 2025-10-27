@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, Edit, Trash, Loader2, Plus, Phone, Building, User, StickyNote, Search, X } from "lucide-react"
+import { MoreHorizontal, Edit, Trash, Loader2, Plus, Phone, Building, User, StickyNote, Search, X, Volume2 } from "lucide-react"
 import useClientStore from "@/stores/useClientStore"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
@@ -34,6 +34,20 @@ const STATUS_OPTIONS = [
   { value: "continuing", label: "Continuing" },
   { value: "finished", label: "Finished" },
   { value: "rejected", label: "Rejected" },
+] as const
+
+// Language options
+const LANGUAGE_OPTIONS = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "it", label: "Italian" },
+  { value: "pt", label: "Portuguese" },
+  { value: "ru", label: "Russian" },
+  { value: "zh", label: "Chinese" },
+  { value: "ja", label: "Japanese" },
+  { value: "ar", label: "Arabic" },
 ] as const
 
 const getStatusLabel = (value?: string): string => {
@@ -193,23 +207,26 @@ export function ClientsTable() {
     const status = formData.get("status") as string
     const assistant_name = formData.get("assistant_name") as string
     const notes = formData.get("notes") as string
+    const conversation_language = formData.get("conversation_language") as string
 
     // Validation
-    if (!full_name || !platform) {
-      toast.error("Full name and platform are required.")
+    if (!full_name?.trim() || !platform?.trim() || !phone_number?.trim() || !status?.trim()) {
+      toast.error("Full name, platform, phone number, and status are required.")
       return
     }
 
     setIsSaving(true)
     try {
       const payload: Omit<Client, "id" | "created_at" | "updated_at"> = {
-        full_name,
+        full_name: full_name.trim(),
         username: full_name.toLowerCase().replace(/\s+/g, "."),
-        phone_number,
-        platform,
-        status,
-        assistant_name,
-        notes,
+        phone_number: phone_number.trim(),
+        platform: platform.trim(),
+        status: status.trim(),
+        assistant_name: assistant_name?.trim() || null,
+        notes: notes?.trim() || null,
+        conversation_language: conversation_language || null,
+        audio: null,
       }
 
       await addClient(payload)
@@ -236,8 +253,9 @@ export function ClientsTable() {
       phone_number: formData.get("phone_number") as string,
       platform: formData.get("platform") as string,
       status: formData.get("status") as string,
-      assistant_name: formData.get("assistant_name") as string,
-      notes: formData.get("notes") as string,
+      assistant_name: (formData.get("assistant_name") as string) || null,
+      notes: (formData.get("notes") as string) || null,
+      conversation_language: (formData.get("conversation_language") as string) || null,
     }
 
     setIsSaving(true)
@@ -486,7 +504,9 @@ export function ClientsTable() {
               <TableHead>Phone</TableHead>
               <TableHead>Platform</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Language</TableHead>
               <TableHead>Assistant</TableHead>
+              <TableHead>Audio</TableHead>
               <TableHead>Notes</TableHead>
               <TableHead>Created</TableHead>
               <TableHead className="text-center">Actions</TableHead>
@@ -495,7 +515,7 @@ export function ClientsTable() {
           <TableBody>
             {!clients || clients.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   <div className="flex flex-col items-center space-y-2">
                     <p>No clients found</p>
                     <Button variant="outline" size="sm" onClick={handleAddClient}>
@@ -544,10 +564,29 @@ export function ClientsTable() {
                     </Badge>
                   </TableCell>
                   <TableCell>
+                    {client.conversation_language ? (
+                      <Badge variant="outline" className="text-xs">
+                        {LANGUAGE_OPTIONS.find((l) => l.value === client.conversation_language)?.label || client.conversation_language}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     {client.assistant_name ? (
                       <div className="flex items-center gap-1">
                         <User size={12} className="text-muted-foreground" />
                         <span className="text-sm">{client.assistant_name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {client.audio ? (
+                      <div className="flex items-center gap-1">
+                        <Volume2 size={14} className="text-muted-foreground cursor-pointer hover:text-primary" />
+                        <span className="text-xs text-muted-foreground">Audio</span>
                       </div>
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
@@ -615,12 +654,24 @@ export function ClientsTable() {
                     <Input id="full_name" name="full_name" placeholder="Enter full name" required />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone_number">Phone</Label>
-                    <Input id="phone_number" name="phone_number" placeholder="Enter phone number" />
+                    <Label htmlFor="phone_number">Phone *</Label>
+                    <Input id="phone_number" name="phone_number" placeholder="Enter phone number" required />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="platform">Platform</Label>
-                    <Input id="platform" name="platform" placeholder="e.g., Instagram, WhatsApp" />
+                    <Label htmlFor="platform">Platform *</Label>
+                    <Select name="platform" required>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select platform" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Instagram">Instagram</SelectItem>
+                        <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                        <SelectItem value="Facebook">Facebook</SelectItem>
+                        <SelectItem value="Telegram">Telegram</SelectItem>
+                        <SelectItem value="Email">Email</SelectItem>
+                        <SelectItem value="Phone">Phone</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="status">Status</Label>
@@ -638,7 +689,22 @@ export function ClientsTable() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="assistant">Assistant</Label>
+                    <Label htmlFor="conversation_language">Language</Label>
+                    <Select name="conversation_language">
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LANGUAGE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="assistant_name">Assistant</Label>
                     <Input id="assistant_name" name="assistant_name" placeholder="Assigned assistant" />
                   </div>
                 </div>
@@ -699,13 +765,20 @@ export function ClientsTable() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="platform">Platform</Label>
-                    <Input
-                      id="platform"
-                      name="platform"
-                      defaultValue={selectedClient.platform || ""}
-                      placeholder="e.g., Instagram, WhatsApp"
-                    />
+                    <Label htmlFor="platform">Platform *</Label>
+                    <Select name="platform" defaultValue={selectedClient.platform || ""}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select platform" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Instagram">Instagram</SelectItem>
+                        <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                        <SelectItem value="Facebook">Facebook</SelectItem>
+                        <SelectItem value="Telegram">Telegram</SelectItem>
+                        <SelectItem value="Email">Email</SelectItem>
+                        <SelectItem value="Phone">Phone</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="status">Status</Label>
@@ -723,10 +796,25 @@ export function ClientsTable() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="assistant">Assistant</Label>
+                    <Label htmlFor="conversation_language">Language</Label>
+                    <Select name="conversation_language" defaultValue={selectedClient.conversation_language || ""}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LANGUAGE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="assistant_name">Assistant</Label>
                     <Input
-                      id="assistant"
-                      name="assistant"
+                      id="assistant_name"
+                      name="assistant_name"
                       defaultValue={selectedClient.assistant_name || ""}
                       placeholder="Assigned assistant"
                     />

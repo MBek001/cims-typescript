@@ -270,14 +270,19 @@ export const addClient = async (data: FormData | Omit<Client, "id" | "created_at
 }
 
 // PUT update client
+// PUT update client
 export const updateClient = async (id: string | number, data: FormData | Partial<Client>): Promise<Client> => {
   let formData: FormData
 
-  // If data is already FormData, use it directly
   if (data instanceof FormData) {
+    // 🧠 FIX: rename `status` to `customer_status` if it exists
+    if (data.has("status")) {
+      const value = data.get("status")
+      data.delete("status")
+      if (value) data.append("customer_status", value as string)
+    }
     formData = data
   } else {
-    // Convert object to FormData
     if (data.full_name !== undefined && !data.full_name.trim()) {
       throw new Error("Full name cannot be empty")
     }
@@ -286,11 +291,10 @@ export const updateClient = async (id: string | number, data: FormData | Partial
     }
 
     formData = new FormData()
-
     if (data.full_name) formData.append("full_name", data.full_name.trim())
     if (data.platform) formData.append("platform", data.platform.trim())
     if (data.phone_number) formData.append("phone_number", data.phone_number.trim())
-    if (data.status) formData.append("status", data.status)
+    if (data.status) formData.append("customer_status", data.status) // ✅ correct key
     if (data.username) formData.append("username", data.username.trim())
     if (data.notes !== undefined) formData.append("notes", data.notes || "")
     if (data.assistant_name !== undefined) formData.append("assistant_name", data.assistant_name || "")
@@ -299,19 +303,12 @@ export const updateClient = async (id: string | number, data: FormData | Partial
     if (data.audio) formData.append("audio", data.audio)
   }
 
-  try {
-    const res = await api.put<BackendClient>(`/crm/customers/${id}`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    })
+  const res = await api.put<BackendClient>(`/crm/customers/${id}`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
 
-    if (!res.data) {
-      throw new Error("No data received from server")
-    }
-
-    return transformBackendToFrontend(res.data)
-  } catch (error) {
-    throw error instanceof Error ? error : new Error("Failed to update client")
-  }
+  if (!res.data) throw new Error("No data received from server")
+  return transformBackendToFrontend(res.data)
 }
 
 // DELETE client

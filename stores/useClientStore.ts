@@ -30,8 +30,8 @@ interface ClientStore {
 
   // Actions
   fetchClients: () => Promise<void>
-  addClient: (client: Omit<Client, "id" | "created_at" | "updated_at">) => Promise<void>
-  updateClient: (id: string | number, client: Partial<Client>) => Promise<void>
+  addClient: (client: FormData | Omit<Client, "id" | "created_at" | "updated_at">) => Promise<void>
+  updateClient: (id: string | number, client: FormData | Partial<Client>) => Promise<void>
   deleteClient: (id: string | number) => Promise<void>
   clearError: () => void
 

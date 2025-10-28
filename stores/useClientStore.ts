@@ -202,11 +202,15 @@ const useClientStore = create<ClientStore>((set, get) => ({
       searchParams.delete("status_filter")
     }
     updateUrl(searchParams)
-
+  
     set((state) => ({ filters: { ...state.filters, status } }))
     set({ loading: true })
+  
     try {
-      const results = await filterClientsByStatus(status)
+      const results = status
+        ? await filterClientsByStatus(status)
+        : get().clients
+  
       set({ filteredClients: results })
     } catch (err) {
       set({ error: err instanceof Error ? err.message : "Filter failed" })
@@ -214,6 +218,7 @@ const useClientStore = create<ClientStore>((set, get) => ({
       set({ loading: false })
     }
   },
+
 
   setPlatformFilter: async (platform) => {
     set((state) => ({ filters: { ...state.filters, platform } }))

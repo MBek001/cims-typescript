@@ -15,7 +15,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, Edit, Trash, Loader2, Plus, Phone, Building, User, StickyNote, Search, X, Volume2 } from "lucide-react"
+import {
+  MoreHorizontal,
+  Edit,
+  Trash,
+  Loader2,
+  Plus,
+  Phone,
+  Building,
+  User,
+  StickyNote,
+  Search,
+  X,
+  Volume2,
+  FileAudio,
+  Calendar,
+} from "lucide-react"
 import useClientStore from "@/stores/useClientStore"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
@@ -38,16 +53,9 @@ const STATUS_OPTIONS = [
 
 // Language options
 const LANGUAGE_OPTIONS = [
+  { value: "uz", label: "Uzbek" },
   { value: "en", label: "English" },
-  { value: "es", label: "Spanish" },
-  { value: "fr", label: "French" },
-  { value: "de", label: "German" },
-  { value: "it", label: "Italian" },
-  { value: "pt", label: "Portuguese" },
   { value: "ru", label: "Russian" },
-  { value: "zh", label: "Chinese" },
-  { value: "ja", label: "Japanese" },
-  { value: "ar", label: "Arabic" },
 ] as const
 
 const getStatusLabel = (value?: string): string => {
@@ -57,18 +65,40 @@ const getStatusLabel = (value?: string): string => {
 const getStatusVariant = (status?: string) => {
   if (!status) return "outline"
   switch (status) {
-    case "contacted":
     case "need_to_call":
-      return "default"
+      return "destructive"
+    case "contacted":
+      return "secondary"
     case "project_started":
+      return "default"
     case "continuing":
-      return "success"
+      return "default"
     case "finished":
       return "secondary"
     case "rejected":
       return "destructive"
     default:
       return "outline"
+  }
+}
+
+const getStatusColor = (status?: string) => {
+  if (!status) return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
+  switch (status) {
+    case "need_to_call":
+      return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
+    case "contacted":
+      return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
+    case "project_started":
+      return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
+    case "continuing":
+      return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100"
+    case "finished":
+      return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+    case "rejected":
+      return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
+    default:
+      return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
   }
 }
 
@@ -114,7 +144,7 @@ export function ClientsTable() {
   const clearError = useClientStore((s) => s.clearError)
 
   // Get URL parameters
-  const searchParams = new URLSearchParams(window.location.search)
+  const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "")
   const urlSearch = searchParams.get("search") || ""
   const urlStatus = searchParams.get("status_filter")
   const showAll = searchParams.get("show_all") === "true"
@@ -132,8 +162,13 @@ export function ClientsTable() {
   const [loadingDelete, setLoadingDelete] = React.useState(false)
   const [selectedClient, setSelectedClient] = React.useState<Client | null>(null)
   const [open, setOpen] = React.useState(false)
-  const [dialogMode, setDialogMode] = React.useState<"add" | "edit" | "delete" | "view-note">("add")
+  const [dialogMode, setDialogMode] = React.useState<"add" | "edit" | "delete" | "view-note" | "play-audio">("add")
   const [viewingNote, setViewingNote] = React.useState<string>("")
+  const [audioFile, setAudioFile] = React.useState<File | null>(null)
+  const [audioFileName, setAudioFileName] = React.useState<string>("")
+  const [playingAudioUrl, setPlayingAudioUrl] = React.useState<string>("")
+  const [dateStart, setDateStart] = React.useState<string>("")
+  const [dateEnd, setDateEnd] = React.useState<string>("")
 
   React.useEffect(() => {
     fetchClients().catch(console.error)
@@ -150,6 +185,9 @@ export function ClientsTable() {
   React.useEffect(() => {
     if (open) {
       clearError()
+      // Reset audio state when dialog opens
+      setAudioFile(null)
+      setAudioFileName("")
     }
   }, [open, clearError])
 
@@ -175,6 +213,30 @@ export function ClientsTable() {
     setViewingNote(note)
     setDialogMode("view-note")
     setOpen(true)
+  }
+
+  const handlePlayAudio = (audioUrl: string) => {
+    setPlayingAudioUrl(audioUrl)
+    setDialogMode("play-audio")
+    setOpen(true)
+  }
+
+  const handleAudioFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith("audio/")) {
+        toast.error("Please select an audio file")
+        return
+      }
+      // Validate file size (e.g., max 50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        toast.error("File size must be less than 50MB")
+        return
+      }
+      setAudioFile(file)
+      setAudioFileName(file.name)
+    }
   }
 
   const handleConfirmDelete = async () => {
@@ -217,21 +279,25 @@ export function ClientsTable() {
 
     setIsSaving(true)
     try {
-      const payload: Omit<Client, "id" | "created_at" | "updated_at"> = {
-        full_name: full_name.trim(),
-        username: full_name.toLowerCase().replace(/\s+/g, "."),
-        phone_number: phone_number.trim(),
-        platform: platform.trim(),
-        status: status.trim(),
-        assistant_name: assistant_name?.trim() || null,
-        notes: notes?.trim() || null,
-        conversation_language: conversation_language || null,
-        audio: null,
+      const submitFormData = new FormData()
+      submitFormData.append("full_name", full_name.trim())
+      submitFormData.append("username", full_name.toLowerCase().replace(/\s+/g, "."))
+      submitFormData.append("phone_number", phone_number.trim())
+      submitFormData.append("platform", platform.trim())
+      submitFormData.append("status", status.trim())
+      submitFormData.append("assistant_name", assistant_name?.trim() || "")
+      submitFormData.append("notes", notes?.trim() || "")
+      submitFormData.append("conversation_language", conversation_language || "")
+
+      if (audioFile) {
+        submitFormData.append("audio", audioFile, audioFile.name)
       }
 
-      await addClient(payload)
+      await addClient(submitFormData)
       toast.success("Client added successfully")
       setOpen(false)
+      setAudioFile(null)
+      setAudioFileName("")
     } catch (err) {
       if (err instanceof Error) {
         toast.error(err.message || "Failed to add client")
@@ -248,22 +314,28 @@ export function ClientsTable() {
     if (isSaving || !selectedClient) return
 
     const formData = new FormData(e.currentTarget)
-    const payload: Partial<Client> = {
-      full_name: formData.get("full_name") as string,
-      phone_number: formData.get("phone_number") as string,
-      platform: formData.get("platform") as string,
-      status: formData.get("status") as string,
-      assistant_name: (formData.get("assistant_name") as string) || null,
-      notes: (formData.get("notes") as string) || null,
-      conversation_language: (formData.get("conversation_language") as string) || null,
+
+    const submitFormData = new FormData()
+    submitFormData.append("full_name", formData.get("full_name") as string)
+    submitFormData.append("phone_number", formData.get("phone_number") as string)
+    submitFormData.append("platform", formData.get("platform") as string)
+    submitFormData.append("status", formData.get("status") as string)
+    submitFormData.append("assistant_name", (formData.get("assistant_name") as string) || "")
+    submitFormData.append("notes", (formData.get("notes") as string) || "")
+    submitFormData.append("conversation_language", (formData.get("conversation_language") as string) || "")
+
+    if (audioFile) {
+      submitFormData.append("audio", audioFile, audioFile.name)
     }
 
     setIsSaving(true)
     try {
-      await updateClient(selectedClient.id, payload)
+      await updateClient(selectedClient.id, submitFormData)
       toast.success("Client updated successfully")
       setOpen(false)
       setSelectedClient(null)
+      setAudioFile(null)
+      setAudioFileName("")
     } catch (err) {
       if (err instanceof Error) {
         toast.error(err.message || "Failed to update client")
@@ -279,7 +351,17 @@ export function ClientsTable() {
     if (!isOpen && !isSaving && !loadingDelete) {
       setOpen(false)
       setSelectedClient(null)
+      setAudioFile(null)
+      setAudioFileName("")
       clearError()
+    }
+  }
+
+  const handleDateFilterChange = () => {
+    if (dateStart) {
+      setDateFilter(dateStart, dateEnd || undefined)
+    } else {
+      setDateFilter("", undefined)
     }
   }
 
@@ -339,7 +421,7 @@ export function ClientsTable() {
         </Button>
       </div>
 
-      <div className="mb-6 space-y-4 bg-muted/30 p-4 rounded-lg border border-border">
+      <div className="mb-6 space-y-3 bg-muted/30 p-4 rounded-lg border border-border">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">Filters</h3>
           {(filters.search || filters.status || filters.platform || filters.phoneNumber || filters.dateRange) && (
@@ -348,27 +430,29 @@ export function ClientsTable() {
               size="sm"
               onClick={() => {
                 clearFilters()
+                setDateStart("")
+                setDateEnd("")
                 window.history.pushState({}, "", window.location.pathname)
               }}
-              className="text-xs"
+              className="text-xs h-8"
             >
               <X size={14} className="mr-1" />
-              Clear All
+              Clear
             </Button>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-          {/* Search by name */}
+        {/* First row: Search and Status */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="space-y-2">
-            <Label htmlFor="search" className="text-xs">
-              Search Name
+            <Label htmlFor="search" className="text-xs font-medium">
+              Search
             </Label>
             <div className="relative">
-              <Search size={14} className="absolute left-2 top-2.5 text-muted-foreground" />
+              <Search size={14} className="absolute left-3 top-2.5 text-muted-foreground" />
               <Input
                 id="search"
-                placeholder="Search by name..."
+                placeholder="Name or username..."
                 defaultValue={urlSearch}
                 onChange={(e) => {
                   const value = e.target.value
@@ -381,31 +465,13 @@ export function ClientsTable() {
                   }
                   window.history.pushState({}, "", `${window.location.pathname}?${params}`)
                 }}
-                className="pl-8 h-9 text-sm"
+                className="pl-9 h-9 text-sm"
               />
             </div>
           </div>
 
-          {/* Search by phone */}
           <div className="space-y-2">
-            <Label htmlFor="phone" className="text-xs">
-              Phone Number
-            </Label>
-            <div className="relative">
-              <Phone size={14} className="absolute left-2 top-2.5 text-muted-foreground" />
-              <Input
-                id="phone"
-                placeholder="Search by phone..."
-                value={filters.phoneNumber}
-                onChange={(e) => setPhoneFilter(e.target.value)}
-                className="pl-8 h-9 text-sm"
-              />
-            </div>
-          </div>
-
-          {/* Filter by status */}
-          <div className="space-y-2">
-            <Label htmlFor="status-filter" className="text-xs">
+            <Label htmlFor="status-filter" className="text-xs font-medium">
               Status
             </Label>
             <Select
@@ -436,9 +502,8 @@ export function ClientsTable() {
             </Select>
           </div>
 
-          {/* Filter by platform */}
           <div className="space-y-2">
-            <Label htmlFor="platform-filter" className="text-xs">
+            <Label htmlFor="platform-filter" className="text-xs font-medium">
               Platform
             </Label>
             <Select
@@ -450,45 +515,73 @@ export function ClientsTable() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Platforms</SelectItem>
-                <SelectItem value="Instagram">Instagram</SelectItem>
-                <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                <SelectItem value="Facebook">Facebook</SelectItem>
-                <SelectItem value="Telegram">Telegram</SelectItem>
-                <SelectItem value="Email">Email</SelectItem>
-                <SelectItem value="Phone">Phone</SelectItem>
+                <SelectItem value="instagram">Instagram</SelectItem>
+                <SelectItem value="whatsApp">WhatsApp</SelectItem>
+                <SelectItem value="facebook">Facebook</SelectItem>
+                <SelectItem value="telegram">Telegram</SelectItem>
+                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="phone">Phone</SelectItem>
               </SelectContent>
             </Select>
           </div>
+        </div>
 
-          {/* Filter by date range */}
+        {/* Second row: Phone and Date Range */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="space-y-2">
-            <Label htmlFor="date-from" className="text-xs">
-              Date Range
+            <Label htmlFor="phone" className="text-xs font-medium">
+              Phone
             </Label>
-            <div className="flex gap-2">
+            <div className="relative">
+              <Phone size={14} className="absolute left-3 top-2.5 text-muted-foreground" />
+              <Input
+                id="phone"
+                placeholder="Search by phone..."
+                value={filters.phoneNumber}
+                onChange={(e) => setPhoneFilter(e.target.value)}
+                className="pl-9 h-9 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="date-from" className="text-xs font-medium">
+              From Date
+            </Label>
+            <div className="relative">
+              <Calendar size={14} className="absolute left-3 top-2.5 text-muted-foreground" />
               <Input
                 id="date-from"
                 type="date"
-                value={filters.dateRange?.start || ""}
+                value={dateStart}
                 onChange={(e) => {
-                  const end = filters.dateRange?.end || ""
-                  if (e.target.value && end) {
-                    setDateFilter(e.target.value, end)
+                  setDateStart(e.target.value)
+                  if (e.target.value) {
+                    setDateFilter(e.target.value, dateEnd || undefined)
                   }
                 }}
-                className="h-9 text-sm flex-1"
+                className="pl-9 h-9 text-sm"
               />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="date-to" className="text-xs font-medium">
+              To Date
+            </Label>
+            <div className="relative">
+              <Calendar size={14} className="absolute left-3 top-2.5 text-muted-foreground" />
               <Input
                 id="date-to"
                 type="date"
-                value={filters.dateRange?.end || ""}
+                value={dateEnd}
                 onChange={(e) => {
-                  const start = filters.dateRange?.start || ""
-                  if (start && e.target.value) {
-                    setDateFilter(start, e.target.value)
+                  setDateEnd(e.target.value)
+                  if (dateStart) {
+                    setDateFilter(dateStart, e.target.value || undefined)
                   }
                 }}
-                className="h-9 text-sm flex-1"
+                className="pl-9 h-9 text-sm"
               />
             </div>
           </div>
@@ -559,14 +652,17 @@ export function ClientsTable() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={getStatusVariant(client.status)} className="text-xs">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(client.status)}`}
+                    >
                       {getStatusLabel(client.status)}
-                    </Badge>
+                    </span>
                   </TableCell>
                   <TableCell>
                     {client.conversation_language ? (
                       <Badge variant="outline" className="text-xs">
-                        {LANGUAGE_OPTIONS.find((l) => l.value === client.conversation_language)?.label || client.conversation_language}
+                        {LANGUAGE_OPTIONS.find((l) => l.value === client.conversation_language)?.label ||
+                          client.conversation_language}
                       </Badge>
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
@@ -584,10 +680,15 @@ export function ClientsTable() {
                   </TableCell>
                   <TableCell>
                     {client.audio ? (
-                      <div className="flex items-center gap-1">
-                        <Volume2 size={14} className="text-muted-foreground cursor-pointer hover:text-primary" />
-                        <span className="text-xs text-muted-foreground">Audio</span>
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePlayAudio(client.audio!)}
+                        className="h-8 px-2 hover:bg-primary/10"
+                        title="Play audio"
+                      >
+                        <Volume2 size={16} className="text-primary" />
+                      </Button>
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
                     )}
@@ -712,6 +813,25 @@ export function ClientsTable() {
                   <Label htmlFor="notes">Notes</Label>
                   <Textarea id="notes" name="notes" rows={3} placeholder="Add notes about the client..." />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="audio_upload">Call Voice/Audio</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="audio_upload"
+                      type="file"
+                      accept="audio/*"
+                      onChange={handleAudioFileChange}
+                      className="cursor-pointer"
+                    />
+                    {audioFileName && (
+                      <div className="flex items-center gap-1 px-3 py-1 bg-muted rounded text-sm">
+                        <FileAudio size={14} />
+                        <span className="truncate">{audioFileName}</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Max 50MB. Supported: MP3, WAV, OGG, M4A, etc.</p>
+                </div>
                 {error && <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">{error}</div>}
                 <div className="flex gap-2 pt-4">
                   <Button
@@ -771,12 +891,12 @@ export function ClientsTable() {
                         <SelectValue placeholder="Select platform" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Instagram">Instagram</SelectItem>
-                        <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                        <SelectItem value="Facebook">Facebook</SelectItem>
-                        <SelectItem value="Telegram">Telegram</SelectItem>
-                        <SelectItem value="Email">Email</SelectItem>
-                        <SelectItem value="Phone">Phone</SelectItem>
+                        <SelectItem value="instagram">Instagram</SelectItem>
+                        <SelectItem value="whatsApp">WhatsApp</SelectItem>
+                        <SelectItem value="facebook">Facebook</SelectItem>
+                        <SelectItem value="telegram">Telegram</SelectItem>
+                        <SelectItem value="email">Email</SelectItem>
+                        <SelectItem value="phone">Phone</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -829,6 +949,33 @@ export function ClientsTable() {
                     rows={3}
                     placeholder="Add notes about the client..."
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="audio_upload_edit">Call Voice/Audio</Label>
+                  <div className="space-y-2">
+                    {selectedClient.audio && !audioFile && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded">
+                        <FileAudio size={14} className="text-muted-foreground flex-shrink-0" />
+                        <span className="text-sm text-muted-foreground truncate">Current audio attached</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="audio_upload_edit"
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleAudioFileChange}
+                        className="cursor-pointer"
+                      />
+                      {audioFileName && (
+                        <div className="flex items-center gap-1 px-3 py-1 bg-muted rounded text-sm">
+                          <FileAudio size={14} />
+                          <span className="truncate">{audioFileName}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Max 50MB. Supported: MP3, WAV, OGG, M4A, etc.</p>
                 </div>
                 {error && <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">{error}</div>}
                 <div className="flex gap-2 pt-4">
@@ -919,6 +1066,33 @@ export function ClientsTable() {
                     {copied ? "Copied" : "Copy"}
                   </Button>
 
+                  <Button variant="outline" onClick={() => setOpen(false)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {dialogMode === "play-audio" && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Play Call Recording</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6">
+                <div className="bg-muted p-8 rounded-md flex flex-col items-center justify-center space-y-4">
+                  <Volume2 size={48} className="text-primary" />
+                  <audio
+                    src={playingAudioUrl}
+                    controls
+                    autoPlay
+                    className="w-full"
+                    style={{
+                      colorScheme: "dark",
+                    }}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setOpen(false)}>
                     Close
                   </Button>

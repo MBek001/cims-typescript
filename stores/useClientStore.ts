@@ -204,19 +204,9 @@ const useClientStore = create<ClientStore>((set, get) => ({
     updateUrl(searchParams)
 
     set((state) => ({ filters: { ...state.filters, status } }))
-    const { filters } = get()
     set({ loading: true })
     try {
-      let results = filters.search ? await searchClients(filters.search) : get().clients
-      if (status) {
-        results = await filterClientsByStatus(status, results)
-      }
-      if (filters.platform) {
-        results = await filterClientsByPlatform(filters.platform, results)
-      }
-      if (filters.phoneNumber) {
-        results = await searchClientsByPhone(filters.phoneNumber, results)
-      }
+      const results = await filterClientsByStatus(status)
       set({ filteredClients: results })
     } catch (err) {
       set({ error: err instanceof Error ? err.message : "Filter failed" })

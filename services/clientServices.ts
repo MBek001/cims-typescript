@@ -133,7 +133,9 @@ export const filterClientsByStatus = async (status: string, existingClients?: Cl
     return existingClients.filter((client) => client.status === status)
   }
   try {
-    const res = await api.get<DashboardResponse>(`/crm/customers/filter/status/${encodeURIComponent(status)}`)
+    const res = await api.get<DashboardResponse>(
+      `/crm/customers/filter/status?status_filter=${encodeURIComponent(status)}`,
+    )
     const customers = extractCustomers(res.data)
     return customers.map(transformBackendToFrontend)
   } catch (error: any) {
@@ -144,14 +146,10 @@ export const filterClientsByStatus = async (status: string, existingClients?: Cl
   }
 }
 
-export const filterClientsByPlatform = async (
-  platform: string,
-  existingClients?: Client[],
-): Promise<Client[]> => {
+export const filterClientsByPlatform = async (platform: string, existingClients?: Client[]): Promise<Client[]> => {
   if (existingClients) {
     return existingClients.filter((client) => client.platform === platform)
   }
-
   try {
     const res = await api.get<DashboardResponse>(
       `/crm/customers/filter/platform?platform=${encodeURIComponent(platform)}`
@@ -166,7 +164,6 @@ export const filterClientsByPlatform = async (
     throw error
   }
 }
-
 
 export const filterClientsByDate = async (
   startDate: string,

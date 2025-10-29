@@ -757,7 +757,7 @@ export function ClientsTable() {
                   </TableCell>
                   <TableCell>
                     <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(client.status)}`}
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${getStatusColor(client.status)}`}
                     >
                       {getStatusLabel(client.status)}
                     </span>

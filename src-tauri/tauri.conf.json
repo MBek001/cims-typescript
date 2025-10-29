@@ -6,8 +6,8 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build",
-    "devPath": "http://localhost:3000",
-    "distDir": "../out"
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../out"
   },
   "app": {
     "windows": [
@@ -21,13 +21,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "appimage"],
+    "targets": ["nsis", "appimage", "deb"],
     "icon": ["icons/icon.ico", "icons/icon.png", "icons/icon.icns"]
-  },
-  "updater": {
-    "active": true,
-    "endpoints": ["https://abboskhonov.github.io/cims-updater/latest.json"],
-    "dialog": true,
-    "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwMDg4QTNGNDJENDM4NjAKUldSZ09OUkNQNG9JSUMyanNuVERIY2N4U1BUSFpXVHlFRzdxQlQyQTZQbW9TNHR5NjJOODNVYjcK"
   }
 }

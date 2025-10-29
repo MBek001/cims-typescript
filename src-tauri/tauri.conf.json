@@ -1,58 +1,33 @@
 {
-  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "CIMS",
   "version": "0.1.0",
-  "identifier": "com.cognilabs.cims",
+  "identifier": "com.cims.app",
   "build": {
-    "frontendDist": "../out",
-    "devUrl": "http://localhost:3000",
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build",
-    "withGlobalTauri": true
+    "devPath": "http://localhost:3000",
+    "distDir": "../out"
   },
   "app": {
     "windows": [
       {
         "title": "CIMS",
-        "width": 800,
-        "height": 600,
-        "resizable": true,
-        "fullscreen": false
+        "width": 1200,
+        "height": 800,
+        "resizable": true
       }
-    ],
-    "security": {
-      "csp": {
-        "default-src": "'self'",
-        "connect-src": "'self' http://localhost:8000 http://127.0.0.1:8000"
-      },
-      "dangerousDisableAssetCspModification": false
-    },
-    "allowlist": {
-      "http": {
-        "all": true,
-        "request": true,
-        "scope": [
-          "http://localhost:3000",
-          "http://127.0.0.1:3000",
-          "http://localhost:8000",
-          "http://127.0.0.1:8000"
-        ]
-      },
-      "protocol": {
-        "asset": true,
-        "assetScope": ["**"]
-      }
-    }
+    ]
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ]
+    "targets": ["nsis", "appimage"],
+    "icon": ["icons/icon.ico", "icons/icon.png", "icons/icon.icns"]
+  },
+  "updater": {
+    "active": true,
+    "endpoints": ["https://abboskhonov.github.io/cims-updater/latest.json"],
+    "dialog": true,
+    "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwMDg4QTNGNDJENDM4NjAKUldSZ09OUkNQNG9JSUMyanNuVERIY2N4U1BUSFpXVHlFRzdxQlQyQTZQbW9TNHR5NjJOODNVYjcK"
   }
 }

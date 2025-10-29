@@ -6,7 +6,7 @@ export async function registerUser(payload: RegisterPayload) {
   return data;
 }
 
-export async function loginUser({ email, password }: { email: string; password: string }) {
+  export async function loginUser({ email, password }: { email: string; password: string }) {
   const formData = new URLSearchParams();
   formData.append("grant_type", "password");
   formData.append("username", email);

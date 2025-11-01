@@ -1,16 +1,28 @@
-// stores/dashboardStore.ts
+// stores/useAdminStats.ts
 import { create } from "zustand"
 import api from "@/lib/api"
 
-interface Statistics {
-  user_count: number
-  messages_count: number
-  active_user_count: number
-  inactive_user_count: number
+interface Customer {
+  id: number
+  full_name: string
+  platform: string
+  username: string
+  phone_number: string
+  status: string
+  assistant_name: string
+  created_at: string
+}
+
+interface BalanceData {
+  uzs: number
+  formatted: string
 }
 
 interface DashboardState {
-  statistics: Statistics
+  todayCustomers: Customer[]
+  needToCallCount: number
+  totalBalance: BalanceData
+  duePaymentsToday: number
   users: any[]
   loading: boolean
   error: string | null
@@ -18,22 +30,21 @@ interface DashboardState {
   fetchDashboard: (force?: boolean) => Promise<void>
   updateUserInStore: (userId: string, updatedData: any) => void
   updateUserOptimistically: (userId: string, updatedData: any) => void
-  recalculateStatistics: () => void
   reset: () => void
 }
 
-const initialStatistics: Statistics = {
-  user_count: 0,
-  messages_count: 0,
-  active_user_count: 0,
-  inactive_user_count: 0,
+const initialState = {
+  todayCustomers: [],
+  needToCallCount: 0,
+  totalBalance: { uzs: 0, formatted: "0.00" },
+  duePaymentsToday: 0,
+  users: [],
 }
 
 const STALE_TIME = 60_000 // 1 minute
 
 const useDashboardStore = create<DashboardState>((set, get) => ({
-  statistics: initialStatistics,
-  users: [],
+  ...initialState,
   loading: false,
   error: null,
   lastFetched: null,
@@ -50,17 +61,23 @@ const useDashboardStore = create<DashboardState>((set, get) => ({
     set({ loading: true, error: null })
 
     try {
-      const res = await api.get("/ceo/dashboard")
-      const data = res.data
+      const [metricsRes, dashboardRes] = await Promise.all([
+        api.get("/ceo/metrics/today"),
+        api.get("/ceo/dashboard"),
+      ])
+
+      const metricsData = metricsRes.data
+      const dashboardData = dashboardRes.data
 
       set({
-        statistics: {
-          user_count: data.statistics?.user_count ?? 0,
-          messages_count: data.statistics?.messages_count ?? 0,
-          active_user_count: data.statistics?.active_user_count ?? 0,
-          inactive_user_count: data.statistics?.inactive_user_count ?? 0,
+        todayCustomers: Array.isArray(metricsData.today_customers) ? metricsData.today_customers : [],
+        needToCallCount: metricsData.need_to_call_count ?? 0,
+        totalBalance: {
+          uzs: metricsData.total_balance_uzs ?? 0,
+          formatted: metricsData.total_balance_formatted ?? "0.00",
         },
-        users: Array.isArray(data.users) ? data.users : [],
+        duePaymentsToday: metricsData.due_payments_today ?? 0,
+        users: Array.isArray(dashboardData.users) ? dashboardData.users : [],
         lastFetched: Date.now(),
       })
     } catch (e: any) {
@@ -68,68 +85,36 @@ const useDashboardStore = create<DashboardState>((set, get) => ({
         error:
           e?.response?.data?.message ||
           e?.message ||
-          "Failed to load dashboard statistics",
+          "Failed to load dashboard metrics",
       })
     } finally {
       set({ loading: false })
     }
   },
 
-  // Update user in store and recalculate statistics (THIS IS THE MAIN METHOD)
+  reset: () => {
+    set({
+      ...initialState,
+      loading: false,
+      error: null,
+      lastFetched: null,
+    })
+  },
+
   updateUserInStore: (userId: string, updatedData: any) => {
     set((state) => {
       const updatedUsers = state.users.map(user =>
         user.id === userId ? { ...user, ...updatedData } : user
       )
-
-      // Recalculate statistics based on updated users
-      const activeUsers = updatedUsers.filter(user => user.is_active).length
-      const inactiveUsers = updatedUsers.filter(user => !user.is_active).length
-
       return {
         users: updatedUsers,
-        statistics: {
-          ...state.statistics,
-          user_count: updatedUsers.length,
-          active_user_count: activeUsers,
-          inactive_user_count: inactiveUsers,
-        }
       }
     })
   },
 
-  // Optimistic update (alias for updateUserInStore)
   updateUserOptimistically: (userId: string, updatedData: any) => {
     const { updateUserInStore } = get()
     updateUserInStore(userId, updatedData)
-  },
-
-  // Manual statistics recalculation
-  recalculateStatistics: () => {
-    set((state) => {
-      const users = state.users
-      const activeUsers = users.filter(user => user.is_active).length
-      const inactiveUsers = users.filter(user => !user.is_active).length
-
-      return {
-        statistics: {
-          ...state.statistics,
-          user_count: users.length,
-          active_user_count: activeUsers,
-          inactive_user_count: inactiveUsers,
-        }
-      }
-    })
-  },
-
-  reset: () => {
-    set({
-      statistics: initialStatistics,
-      users: [],
-      loading: false,
-      error: null,
-      lastFetched: null,
-    })
   },
 }))
 

@@ -1,12 +1,14 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import * as React from "react";
 import {
   IconDashboard,
+  IconHome,
   IconChartBar,
   IconReport,
   IconCreditCard,
   IconBrandWordpress,
+  IconAppWindow
 } from "@tabler/icons-react"
 import { NavMain, type NavItem } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -18,66 +20,74 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
-import useAuthStore from "@/stores/useAuthStore"
-import { isAuthenticated } from "@/helpers/authHelpers"
-import { useRouter } from "next/navigation"
+} from "@/components/ui/sidebar";
+import useAuthStore from "@/stores/useAuthStore";
+import { isAuthenticated } from "@/helpers/authHelpers";
+import { useRouter } from "next/navigation";
 
 const navMain: NavItem[] = [
-  { title: "Dashboard", url: "/dashboard", icon: IconDashboard, permission: "ceo" },
+  {
+    title: "Dashboard",
+    url: "/dashboard",  
+    icon: IconHome,
+    permission: "ceo",
+  },
   { title: "Sales", url: "/sales", icon: IconChartBar, permission: "crm" },
   { title: "Finance", url: "/finance", icon: IconReport, permission: "finance_list" },
   { title: "Payment", url: "/payment", icon: IconCreditCard, permission: "payment_list" },
-  { title: "WordPress", url: "/wordpress", icon: IconBrandWordpress, permission: "project_toggle" },
+  { title: "WordPress", url: "/wordpress", icon: IconAppWindow, permission: "project_toggle" },
+  
 ]
 
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
-  const user = useAuthStore((s) => s.user)
-  const loading = useAuthStore((s) => s.loading)
-  const fetchUser = useAuthStore.getState().fetchUser
-  const router = useRouter()
-  const [checkedAuth, setCheckedAuth] = React.useState(false)
+  const user = useAuthStore((s) => s.user);
+  const loading = useAuthStore((s) => s.loading);
+  const fetchUser = useAuthStore.getState().fetchUser;
+  const router = useRouter();
+  const [checkedAuth, setCheckedAuth] = React.useState(false);
 
   // Check authentication & load user
   React.useEffect(() => {
     if (!isAuthenticated()) {
-      setCheckedAuth(true)
-      return
+      setCheckedAuth(true);
+      return;
     }
 
     if (!user && !loading) {
-      fetchUser().finally(() => setCheckedAuth(true))
+      fetchUser().finally(() => setCheckedAuth(true));
     } else {
-      setCheckedAuth(true)
+      setCheckedAuth(true);
     }
-  }, [user, loading, fetchUser])
+  }, [user, loading, fetchUser]);
 
   // Redirect if not authenticated
   React.useEffect(() => {
     if (checkedAuth && !isAuthenticated()) {
-      router.push("/login")
+      router.push("/login");
     }
-  }, [checkedAuth, router])
+  }, [checkedAuth, router]);
 
   // Loading state while checking auth
   if (!checkedAuth) {
     return (
       <div className="flex items-center justify-center p-4">
-        <span className="text-sm text-muted-foreground">Checking authentication...</span>
+        <span className="text-sm text-muted-foreground">
+          Checking authentication...
+        </span>
       </div>
-    )
+    );
   }
 
   // If not authenticated, render nothing (redirect will fire)
   if (!isAuthenticated()) {
-    return null
+    return null;
   }
 
   const displayUser = {
     name: user ? `${user.name} ${user.surname}` : "Loading...",
     email: user?.email ?? "",
     avatar: "/avatars/default.jpg",
-  }
+  };
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -104,5 +114,5 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         <NavUser user={displayUser} />
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }

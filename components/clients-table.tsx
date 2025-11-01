@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "sonner";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -102,26 +103,24 @@ const getStatusVariant = (status?: string) => {
 
 const getStatusColor = (status?: string) => {
   if (!status)
-    return "bg-neutral-800 text-neutral-200";
-
+    return "dark:bg-neutral-800 dark:text-neutral-200 bg-neutral-100 text-neutral-800";
   switch (status) {
     case "contacted":
-      return "bg-blue-900/50 text-blue-400 border border-blue-800";
+      return "dark:bg-blue-900/50 dark:text-blue-400 dark:border-blue-800 bg-blue-100 text-blue-900 border border-blue-300";
     case "project_started":
-      return "bg-yellow-900/50 text-yellow-400 border border-yellow-800";
+      return "dark:bg-yellow-900/50 dark:text-yellow-400 dark:border-yellow-800 bg-yellow-100 text-yellow-900 border border-yellow-300";
     case "continuing":
-      return "bg-purple-900/50 text-purple-400 border border-purple-800";
+      return "dark:bg-purple-900/50 dark:text-purple-400 dark:border-purple-800 bg-purple-100 text-purple-900 border border-purple-300";
     case "finished":
-      return "bg-green-900/50 text-green-400 border border-green-800";
+      return "dark:bg-green-900/50 dark:text-green-400 dark:border-green-800 bg-green-100 text-green-900 border border-green-300";
     case "rejected":
-      return "bg-red-900/50 text-red-400 border border-red-800";
+      return "dark:bg-red-900/50 dark:text-red-400 dark:border-red-800 bg-red-100 text-red-900 border border-red-300";
     case "need_to_call":
-      return "bg-orange-900/50 text-orange-400 border border-orange-800";
+      return "dark:bg-orange-900/50 dark:text-orange-400 dark:border-orange-800 bg-orange-100 text-orange-900 border border-orange-300";
     default:
-      return "bg-neutral-800 text-neutral-200";
+      return "dark:bg-neutral-800 dark:text-neutral-200 bg-neutral-100 text-neutral-800";
   }
 };
-
 
 // Utility: Get initials from full name
 const getInitials = (name: string) => {
@@ -764,11 +763,15 @@ export function ClientsTable() {
                   </TableCell>
                   <TableCell>
                     {client.conversation_language ? (
-                      <Badge variant="outline" className="text-xs">
+                      <div className={cn(
+                        "text-xs px-2 py-1 rounded-md border inline-block w-fit",
+                        "dark:bg-neutral-900/50 dark:text-neutral-300 dark:border-neutral-700",
+                        "bg-neutral-100 text-neutral-800 border-neutral-300"
+                      )}>
                         {LANGUAGE_OPTIONS.find(
                           (l) => l.value === client.conversation_language,
                         )?.label || client.conversation_language}
-                      </Badge>
+                      </div>
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
                     )}
@@ -1029,7 +1032,7 @@ export function ClientsTable() {
                     <Label htmlFor="platform">Platform *</Label>
                     <Select
                       name="platform"
-                      defaultValue={selectedClient.platform || ""}
+                      defaultValue={selectedClient.platform}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select platform" />

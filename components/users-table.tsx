@@ -53,6 +53,7 @@ const PERMISSION_KEYS = [
   "project_toggle",
   "crm",
   "finance_list",
+  "update_list",
   
 ] as const;
 type PermissionKey = (typeof PERMISSION_KEYS)[number];

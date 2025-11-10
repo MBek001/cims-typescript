@@ -861,7 +861,7 @@ export function ClientsTable() {
 
       {/* Dialog */}
       <Dialog open={open} onOpenChange={handleDialogClose}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[95vh] overflow-y-auto">
           {dialogMode === "add" && (
             <>
               <DialogHeader>

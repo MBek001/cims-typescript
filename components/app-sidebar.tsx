@@ -7,7 +7,7 @@ import {
   IconChartBar,
   IconReport,
   IconCreditCard,
-  IconBrandWordpress,
+  IconCircleCheck,
   IconAppWindow
 } from "@tabler/icons-react"
 import { NavMain, type NavItem } from "@/components/nav-main"
@@ -36,6 +36,7 @@ const navMain: NavItem[] = [
   { title: "Finance", url: "/finance", icon: IconReport, permission: "finance_list" },
   { title: "Payment", url: "/payment", icon: IconCreditCard, permission: "payment_list" },
   { title: "WordPress", url: "/wordpress", icon: IconAppWindow, permission: "project_toggle" },
+  { title: "Updates", url: "/update-list", icon: IconCircleCheck, permission: "update_list" },
   
 ]
 

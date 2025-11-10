@@ -9,6 +9,7 @@
     project_toggle: boolean
     crm: boolean
     finance_list: boolean
+    update_list: boolean
   }
   
   async function fetchPermissions(userId: string): Promise<Permissions> {

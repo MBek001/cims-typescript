@@ -102,6 +102,7 @@ export function UsersTable() {
         project_toggle: Boolean(permissions.project_toggle),
         crm: Boolean(permissions.crm),
         finance_list: Boolean(permissions.finance_list),
+        update_list: Boolean(permissions.update_list),
       };
       setPermissionsData(normalized);
     } else if (dialogMode !== "permissions") {

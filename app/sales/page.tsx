@@ -6,7 +6,7 @@ import { SalesStatsCards } from '@/components/salesStats'
 import { SiteHeader } from '@/components/site-header'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import React from 'react'
-import { PermissionGuard } from '@/components/permissionGuard'  // <-- import
+import { PermissionGuard } from '@/components/permissionGuard'
 
 const Page = () => {
   return (

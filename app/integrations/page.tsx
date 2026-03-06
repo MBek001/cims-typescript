@@ -1,13 +1,13 @@
-import * as React from "react";
+import React from "react";
 import { AppSidebar } from "@/components/app-sidebar";
-import { MemberDashboard } from "@/components/member-dashboard";
+import { IntegrationsPanel } from "@/components/integrations-panel";
 import { PermissionGuard } from "@/components/permissionGuard";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
-const Member: React.FC = () => {
+export default function IntegrationsPage() {
   return (
-    <PermissionGuard required={["crm", "update_list", "finance_list"]}>
+    <PermissionGuard required="ceo">
       <SidebarProvider
         style={
           {
@@ -18,16 +18,16 @@ const Member: React.FC = () => {
       >
         <AppSidebar variant="sidebar" />
         <SidebarInset>
-          <SiteHeader header="Member" />
+          <SiteHeader header="Integrations" />
           <div className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-2">
-              <MemberDashboard />
+              <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+                <IntegrationsPanel />
+              </div>
             </div>
           </div>
         </SidebarInset>
       </SidebarProvider>
     </PermissionGuard>
   );
-};
-
-export default Member;
+}

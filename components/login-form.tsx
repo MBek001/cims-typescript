@@ -1,7 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { validateLogin } from "@/helpers/authHelpers";
+import { fetchDashboardRedirectUrl, loginUser } from "@/services/authServices";
+import useAuthStore from "@/stores/useAuthStore";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,10 +18,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { loginUser } from "@/services/authServices";
-import { validateLogin } from "@/helpers/authHelpers";
-import { useRouter } from "next/navigation";
-import useAuthStore from "@/stores/useAuthStore"; // ✅ import the store
 
 export function LoginForm({
   className,
@@ -25,11 +27,10 @@ export function LoginForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
   const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError(null);
 
     const validationError = validateLogin({ email, password });
@@ -42,40 +43,21 @@ export function LoginForm({
 
     try {
       const response = await loginUser({ email, password });
-      console.log("Login successful:", response);
-
-      // Adjust token extraction based on actual API shape
-      const token =
-        response.access_token ||
-        response.data?.access_token ||
-        response.token ||
-        null;
-
-      if (!token) {
+      if (!response.access_token) {
         throw new Error("No token returned from backend");
       }
 
-      // ✅ Save token using the store (this also updates localStorage)
-      useAuthStore.getState().setToken(token);
+      useAuthStore
+        .getState()
+        .setTokens(response.access_token, response.refresh_token ?? null);
+      await useAuthStore.getState().fetchUser();
 
-      router.push("/dashboard");
-    } catch (err) {
-      console.error("Login failed:", err);
-      let backendMessage = "Login failed. Please try again.";
-      if (
-        err &&
-        typeof err === "object" &&
-        "response" in err &&
-        err.response &&
-        typeof err.response === "object" &&
-        "data" in err.response &&
-        err.response.data &&
-        typeof err.response.data === "object"
-      ) {
-        const data = err.response.data as { message?: string; detail?: string };
-        backendMessage = data.message || data.detail || backendMessage;
-      }
-      setError(backendMessage);
+      const redirectUrl = await fetchDashboardRedirectUrl().catch(
+        () => "/dashboard",
+      );
+      router.push(redirectUrl || "/dashboard");
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Login failed. Please try again."));
     } finally {
       setIsLoading(false);
     }
@@ -94,7 +76,7 @@ export function LoginForm({
           <form onSubmit={handleSubmit}>
             <div className="flex flex-col gap-6">
               {error && (
-                <div className="text-red-500 text-sm bg-red-50 p-3 rounded">
+                <div className="rounded bg-red-50 p-3 text-sm text-red-500">
                   {error}
                 </div>
               )}
@@ -106,7 +88,7 @@ export function LoginForm({
                   type="email"
                   placeholder="m@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                   required
                 />
               </div>
@@ -114,18 +96,18 @@ export function LoginForm({
               <div className="grid gap-3">
                 <div className="flex items-center">
                   <Label htmlFor="password">Password</Label>
-                  <a
-                    href="#"
+                  <Link
+                    href="/account-recovery"
                     className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
                   >
-                    Forgot your password?
-                  </a>
+                    Forgot password?
+                  </Link>
                 </div>
                 <Input
                   id="password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
                   required
                 />
               </div>
@@ -139,9 +121,9 @@ export function LoginForm({
 
             <div className="mt-4 text-center text-sm">
               Don&apos;t have an account?{" "}
-              <a href="/register" className="underline underline-offset-4">
+              <Link href="/register" className="underline underline-offset-4">
                 Sign up
-              </a>
+              </Link>
             </div>
           </form>
         </CardContent>

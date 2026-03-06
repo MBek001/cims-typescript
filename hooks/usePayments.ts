@@ -36,15 +36,25 @@ interface UsePaymentsReturn {
     Error,
     PaymentFormInput,
     unknown
-  >["mutate"];
+  >["mutateAsync"];
   updatePayment: UseMutationResult<
     Payment,
     Error,
     { paymentId: number; formData: Partial<PaymentFormInput> },
     unknown
-  >["mutate"];
-  deletePayment: UseMutationResult<number, Error, number, unknown>["mutate"];
-  togglePayment: UseMutationResult<Payment, Error, number, unknown>["mutate"];
+  >["mutateAsync"];
+  deletePayment: UseMutationResult<
+    number,
+    Error,
+    number,
+    unknown
+  >["mutateAsync"];
+  togglePayment: UseMutationResult<
+    Payment,
+    Error,
+    number,
+    unknown
+  >["mutateAsync"];
   isCreating: boolean;
   isUpdating: boolean;
   isDeleting: boolean;
@@ -154,10 +164,10 @@ export const usePayments = (): UsePaymentsReturn => {
 
     // Actions
     refetch,
-    createPayment: createPaymentMutation.mutate,
-    updatePayment: updatePaymentMutation.mutate,
-    deletePayment: deletePaymentMutation.mutate,
-    togglePayment: togglePaymentMutation.mutate,
+    createPayment: createPaymentMutation.mutateAsync,
+    updatePayment: updatePaymentMutation.mutateAsync,
+    deletePayment: deletePaymentMutation.mutateAsync,
+    togglePayment: togglePaymentMutation.mutateAsync,
 
     // Mutation states
     isCreating: createPaymentMutation.isPending,

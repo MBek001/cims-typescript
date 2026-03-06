@@ -3,6 +3,7 @@ import {
   IconCreditCard,
   IconDotsVertical,
   IconLogout,
+  IconLogout2,
   IconUserCircle,
   IconMoon,
   IconSun,
@@ -27,10 +28,11 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { logoutUser } from "@/services/authServices";
+import { logoutAllSessions, logoutUser } from "@/services/authServices";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 export function NavUser({
   user,
@@ -54,6 +56,15 @@ export function NavUser({
   const handleLogout = async () => {
     await logoutUser();
     router.push("/login");
+  };
+
+  const handleLogoutAll = async () => {
+    try {
+      await logoutAllSessions();
+      router.push("/login");
+    } catch {
+      toast.error("Failed to log out from all sessions");
+    }
   };
 
   const getInitials = (name: string) => {
@@ -159,6 +170,10 @@ export function NavUser({
               </DropdownMenuSub>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogoutAll}>
+              <IconLogout2 />
+              Log out all
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogout}>
               <IconLogout />
               Log out

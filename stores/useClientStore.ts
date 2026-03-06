@@ -1,14 +1,10 @@
-  import { create } from "zustand";
+import { create } from "zustand";
+import { getCanonicalCRMStatusValue } from "@/lib/crm-statuses";
 import {
   getClients,
   addClient as apiAddClient,
   updateClient as apiUpdateClient,
   deleteClient as apiDeleteClient,
-  filterClientsByStatus,
-  filterClientsByPlatform,
-  filterClientsByDate,
-  searchClientsByPhone,
-  searchClients,
   type Client,
 } from "@/services/clientServices";
 
@@ -63,6 +59,66 @@ const updateUrl = (searchParams?: URLSearchParams) => {
   window.history.pushState({}, "", newUrl);
 };
 
+const toComparableDate = (value?: string) => {
+  const parsed = value ? new Date(value) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return parsed.toISOString().split("T")[0];
+};
+
+const applyClientFilters = (clients: Client[], filters: FilterState) => {
+  const searchValue = filters.search.trim().toLowerCase();
+  const phoneValue = filters.phoneNumber.trim();
+  const selectedStatus = getCanonicalCRMStatusValue(filters.status);
+
+  return clients.filter((client) => {
+    if (searchValue) {
+      const matchesSearch =
+        client.full_name.toLowerCase().includes(searchValue) ||
+        client.username?.toLowerCase().includes(searchValue);
+
+      if (!matchesSearch) {
+        return false;
+      }
+    }
+
+    if (
+      selectedStatus &&
+      getCanonicalCRMStatusValue(client.status) !== selectedStatus
+    ) {
+      return false;
+    }
+
+    if (filters.platform && client.platform !== filters.platform) {
+      return false;
+    }
+
+    if (phoneValue && !client.phone_number.includes(phoneValue)) {
+      return false;
+    }
+
+    if (filters.dateRange?.start) {
+      const clientDate = toComparableDate(client.created_at);
+      if (!clientDate) {
+        return false;
+      }
+
+      if (filters.dateRange.end) {
+        return (
+          clientDate >= filters.dateRange.start &&
+          clientDate <= filters.dateRange.end
+        );
+      }
+
+      return clientDate === filters.dateRange.start;
+    }
+
+    return true;
+  });
+};
+
 const useClientStore = create<ClientStore>((set, get) => ({
   clients: [],
   filteredClients: [],
@@ -70,7 +126,7 @@ const useClientStore = create<ClientStore>((set, get) => ({
   error: null,
   filters: {
     search: getUrlParam("search") || "",
-    status: getUrlParam("status_filter"),
+    status: getCanonicalCRMStatusValue(getUrlParam("status_filter")),
     platform: null,
     dateRange: null,
     phoneNumber: "",
@@ -81,7 +137,8 @@ const useClientStore = create<ClientStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const data = await getClients();
-      set({ clients: data, filteredClients: data });
+      const filters = get().filters;
+      set({ clients: data, filteredClients: applyClientFilters(data, filters) });
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Failed to fetch clients",
@@ -178,112 +235,79 @@ const useClientStore = create<ClientStore>((set, get) => ({
     const searchParams = new URLSearchParams(
       typeof window !== "undefined" ? window.location.search : "",
     );
-    searchParams.set("search", search);
+    if (search) {
+      searchParams.set("search", search);
+    } else {
+      searchParams.delete("search");
+    }
     updateUrl(searchParams);
 
-    set((state) => ({ filters: { ...state.filters, search } }));
-    const { filters } = get();
-    set({ loading: true });
-    try {
-      let results = await searchClients(search);
-      if (filters.status) {
-        results = await filterClientsByStatus(filters.status, results);
-      }
-      if (filters.platform) {
-        results = await filterClientsByPlatform(filters.platform, results);
-      }
-      if (filters.phoneNumber) {
-        results = await searchClientsByPhone(filters.phoneNumber, results);
-      }
-      set({ filteredClients: results });
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : "Search failed" });
-    } finally {
-      set({ loading: false });
-    }
+    set((state) => {
+      const filters = { ...state.filters, search };
+      return {
+        filters,
+        filteredClients: applyClientFilters(state.clients, filters),
+        error: null,
+      };
+    });
   },
 
   setStatusFilter: async (status) => {
+    const normalizedStatus = getCanonicalCRMStatusValue(status);
     const searchParams = new URLSearchParams(
       typeof window !== "undefined" ? window.location.search : "",
     );
-    if (status) {
-      searchParams.set("status_filter", status);
+    if (normalizedStatus) {
+      searchParams.set("status_filter", normalizedStatus);
     } else {
       searchParams.delete("status_filter");
     }
     updateUrl(searchParams);
 
-    set((state) => ({ filters: { ...state.filters, status } }));
-    set({ loading: true });
-
-    try {
-      const results = status
-        ? await filterClientsByStatus(status)
-        : get().clients;
-
-      set({ filteredClients: results });
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : "Filter failed" });
-    } finally {
-      set({ loading: false });
-    }
+    set((state) => {
+      const filters = { ...state.filters, status: normalizedStatus || null };
+      return {
+        filters,
+        filteredClients: applyClientFilters(state.clients, filters),
+        error: null,
+      };
+    });
   },
 
   setPlatformFilter: async (platform) => {
-    set((state) => ({ filters: { ...state.filters, platform } }));
-    if (platform) {
-      set({ loading: true });
-      try {
-        const results = await filterClientsByPlatform(platform);
-        set({ filteredClients: results });
-      } catch (err) {
-        set({ error: err instanceof Error ? err.message : "Filter failed" });
-      } finally {
-        set({ loading: false });
-      }
-    } else {
-      const { clients } = get();
-      set({ filteredClients: clients });
-    }
+    set((state) => {
+      const filters = { ...state.filters, platform };
+      return {
+        filters,
+        filteredClients: applyClientFilters(state.clients, filters),
+        error: null,
+      };
+    });
   },
 
   setDateFilter: async (start, end) => {
-    set((state) => ({
-      filters: { ...state.filters, dateRange: { start, end } },
-    }));
-    if (start) {
-      set({ loading: true });
-      try {
-        const results = await filterClientsByDate(start, end);
-        set({ filteredClients: results });
-      } catch (err) {
-        set({ error: err instanceof Error ? err.message : "Filter failed" });
-      } finally {
-        set({ loading: false });
-      }
-    } else {
-      const { clients } = get();
-      set({ filteredClients: clients });
-    }
+    set((state) => {
+      const filters = {
+        ...state.filters,
+        dateRange: start ? { start, end } : null,
+      };
+      return {
+        filters,
+        filteredClients: applyClientFilters(state.clients, filters),
+        error: null,
+      };
+    });
   },
 
   setPhoneFilter: async (phone) => {
-    set((state) => ({ filters: { ...state.filters, phoneNumber: phone } }));
-    if (phone.trim()) {
-      set({ loading: true });
-      try {
-        const results = await searchClientsByPhone(phone);
-        set({ filteredClients: results });
-      } catch (err) {
-        set({ error: err instanceof Error ? err.message : "Search failed" });
-      } finally {
-        set({ loading: false });
-      }
-    } else {
-      const { clients } = get();
-      set({ filteredClients: clients });
-    }
+    set((state) => {
+      const filters = { ...state.filters, phoneNumber: phone };
+      return {
+        filters,
+        filteredClients: applyClientFilters(state.clients, filters),
+        error: null,
+      };
+    });
   },
 
   clearFilters: async () => {

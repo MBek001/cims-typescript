@@ -19,6 +19,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { toast, Toaster } from "sonner";
 import { verifyOtp, resendVerificationCode } from "@/services/authServices";
+import { getApiErrorMessage } from "@/lib/api-error";
+import useAuthStore from "@/stores/useAuthStore";
 import { Loader2, Clock, Mail } from "lucide-react";
 
 export function VerifyEmailForm({ email }: { email: string }) {
@@ -64,35 +66,28 @@ export function VerifyEmailForm({ email }: { email: string }) {
   };
 
   const handleVerify = async () => {
-    if (code.length !== 4 || isExpired) return;
+    if (code.length < 4 || isExpired) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      await verifyOtp(email, code);
+      const response = await verifyOtp(email, code);
       toast.success("Email verified successfully!");
       localStorage.removeItem("unverifiedEmail");
-      router.push("/login");
-    } catch (err) {
-      let msg = "Verification failed";
-      if (err instanceof Error) {
-        msg = err.message;
-      } else if (
-        err &&
-        typeof err === "object" &&
-        "response" in err &&
-        err.response &&
-        typeof err.response === "object" &&
-        "data" in err.response &&
-        err.response.data &&
-        typeof err.response.data === "object"
-      ) {
-        const data = err.response.data as { message?: string };
-        msg = data.message || msg;
+      if (response.access_token) {
+        useAuthStore
+          .getState()
+          .setTokens(response.access_token, response.refresh_token ?? null);
+        await useAuthStore.getState().fetchUser();
+        router.push("/dashboard");
+        return;
       }
-      setError(msg);
-      toast.error(msg);
+      router.push("/login");
+    } catch (err: unknown) {
+      const message = getApiErrorMessage(err, "Verification failed");
+      setError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -108,25 +103,10 @@ export function VerifyEmailForm({ email }: { email: string }) {
       setIsExpired(false);
       setCode(""); // Clear current code
       toast.success("Verification code sent!");
-    } catch (err) {
-      let msg = "Failed to resend code";
-      if (err instanceof Error) {
-        msg = err.message;
-      } else if (
-        err &&
-        typeof err === "object" &&
-        "response" in err &&
-        err.response &&
-        typeof err.response === "object" &&
-        "data" in err.response &&
-        err.response.data &&
-        typeof err.response.data === "object"
-      ) {
-        const data = err.response.data as { message?: string };
-        msg = data.message || msg;
-      }
-      setError(msg);
-      toast.error(msg);
+    } catch (err: unknown) {
+      const message = getApiErrorMessage(err, "Failed to resend code");
+      setError(message);
+      toast.error(message);
     } finally {
       setIsResending(false);
     }
@@ -171,13 +151,13 @@ export function VerifyEmailForm({ email }: { email: string }) {
             {/* OTP Input */}
             <div className="flex justify-center">
               <InputOTP
-                maxLength={4}
+                maxLength={6}
                 value={code}
                 onChange={setCode}
                 disabled={isExpired}
               >
                 <InputOTPGroup>
-                  {Array.from({ length: 4 }).map((_, i) => (
+                  {Array.from({ length: 6 }).map((_, i) => (
                     <InputOTPSlot key={i} index={i} />
                   ))}
                 </InputOTPGroup>
@@ -199,7 +179,7 @@ export function VerifyEmailForm({ email }: { email: string }) {
             <div className="space-y-3">
               <Button
                 onClick={handleVerify}
-                disabled={isLoading || code.length !== 4 || isExpired}
+                disabled={isLoading || code.length < 4 || isExpired}
                 className="w-full"
               >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

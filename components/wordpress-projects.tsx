@@ -78,9 +78,9 @@ export default function WordpressProjects() {
     setSelectedProject(project);
     setForm({
       name: project.name,
-      url: "", // You might need to fetch this or have it in your project data
+      url: project.url,
       description: project.description,
-      is_active: true, // Assuming a default, adjust as needed
+      is_active: project.is_active,
     });
     setDialogMode("edit");
     setOpen(true);

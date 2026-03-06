@@ -39,9 +39,9 @@
       },
     })
   
-    return {
-      ...permissionsQuery,
-      updatePermissions: permissionsMutation.mutate,
-      isUpdating: permissionsMutation.isPending,
-    }
+  return {
+    ...permissionsQuery,
+    updatePermissions: permissionsMutation.mutateAsync,
+    isUpdating: permissionsMutation.isPending,
   }
+}

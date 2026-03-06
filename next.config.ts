@@ -1,17 +1,28 @@
 import type { NextConfig } from "next";
 
+const apiOrigin =
+  process.env.API_ORIGIN ?? "https://api.project.cims.cognilabs.org";
+
 const nextConfig: NextConfig = {
-  // ✅ This makes Next.js output static HTML/CSS/JS in the "out" folder
-  output: "export",
+  allowedDevOrigins: [
+    "*.ngrok-free.dev",
+    "uncanonical-chantelle-winningly.ngrok-free.dev",
+  ],
 
   eslint: {
-    // ⚠️ Disables ESLint during builds (optional)
     ignoreDuringBuilds: true,
   },
 
-  // Redirects are not supported with static exports
-  // Use client-side navigation instead
   basePath: "",
+
+  async rewrites() {
+    return [
+      {
+        source: "/backend/:path*",
+        destination: `${apiOrigin}/:path*`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -1,6 +1,6 @@
 // stores/salesStore.ts
 import { create } from "zustand";
-import api from "@/lib/api";
+import { getCrmStats } from "@/services/clientServices";
 
 interface SalesStatistics {
   total_customers: number;
@@ -66,11 +66,10 @@ const useSalesStore = create<SalesState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      const res = await api.get("/crm/stats");
-      const data = res.data;
+      const data = await getCrmStats();
 
       set({
-        sales: Array.isArray(data.sales) ? data.sales : [],
+        sales: [],
         statistics: {
           total_customers: data.total_customers ?? 0,
           need_to_call: data.need_to_call ?? 0,

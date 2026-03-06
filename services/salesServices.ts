@@ -1,5 +1,9 @@
-// services/salesServices.ts
-import api from "@/lib/api";
+import {
+  addClient,
+  deleteClient,
+  updateClient,
+  type Client,
+} from "@/services/clientServices";
 
 export interface CreateSalePayload {
   full_name: string;
@@ -9,21 +13,42 @@ export interface CreateSalePayload {
   status: string;
   assistant_name: string;
   notes: string;
+  conversation_language?: string | null;
+  recall_time?: string | null;
+  customer_type?: string | null;
 }
 
 export interface UpdateSalePayload extends Partial<CreateSalePayload> {}
 
 export const addSale = async (payload: CreateSalePayload) => {
-  const res = await api.post("/ceo/sales", payload);
-  return res.data;
+  return addClient({
+    full_name: payload.full_name,
+    username: payload.username,
+    platform: payload.platform,
+    phone_number: payload.phone_number,
+    status: payload.status,
+    assistant_name: payload.assistant_name,
+    notes: payload.notes,
+    recall_time: payload.recall_time ?? null,
+    customer_type: payload.customer_type ?? null,
+    conversation_language: payload.conversation_language ?? "uz",
+    audio: null,
+    audio_file_id: null,
+    audio_url: null,
+  });
 };
 
-export const updateSale = async (id: number | string, payload: UpdateSalePayload) => {
-  const res = await api.put(`/ceo/sales/${id}`, payload);
-  return res.data;
+export const updateSale = async (
+  id: number | string,
+  payload: UpdateSalePayload,
+): Promise<Client> => {
+  return updateClient(id, {
+    ...payload,
+    status: payload.status,
+  });
 };
 
 export const deleteSale = async (id: number | string) => {
-  const res = await api.delete(`/ceo/sales/${id}`);
-  return res.data;
+  await deleteClient(id);
+  return { success: true };
 };

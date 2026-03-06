@@ -1,12 +1,30 @@
 import api from "@/lib/api";
-import type { RegisterPayload } from "@/types/auth";
+import { getApiErrorMessage } from "@/lib/api-error";
+import useAuthStore, { getRefreshToken } from "@/stores/useAuthStore";
+import type {
+  AuthResponse,
+  EmailVerificationPayload,
+  LoginPayload,
+  RegisterPayload,
+  User,
+} from "@/types/auth";
 
-export async function registerUser(payload: RegisterPayload) {
-  const { data } = await api.post("/auth/register", payload);
+export interface SuccessResponse {
+  success: boolean;
+  message: string;
+}
+
+export async function registerUser(
+  payload: RegisterPayload,
+): Promise<SuccessResponse> {
+  const { data } = await api.post<SuccessResponse>("/auth/register", payload);
   return data;
 }
 
-  export async function loginUser({ email, password }: { email: string; password: string }) {
+export async function loginUser({
+  email,
+  password,
+}: LoginPayload): Promise<AuthResponse> {
   const formData = new URLSearchParams();
   formData.append("grant_type", "password");
   formData.append("username", email);
@@ -15,42 +33,96 @@ export async function registerUser(payload: RegisterPayload) {
   formData.append("client_id", "");
   formData.append("client_secret", "");
 
-  const response = await api.post("/auth/login", formData.toString(), {
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
+  const response = await api.post<AuthResponse>(
+    "/auth/login",
+    formData.toString(),
+    {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
     },
-  });
+  );
 
-  console.log("Raw API response:", response);
-  console.log("Response data:", response.data);
   return response.data;
 }
 
-// ✅ verify OTP
-export async function verifyOtp(email: string, code: string) {
-  const { data } = await api.post("/auth/verify-email", {
+export async function fetchCurrentUser(): Promise<User> {
+  const { data } = await api.get<User>("/auth/me");
+  return data;
+}
+
+export async function verifyOtp(
+  email: string,
+  code: string,
+): Promise<AuthResponse> {
+  const payload: EmailVerificationPayload = { email, code };
+  const { data } = await api.post<AuthResponse>("/auth/verify-email", payload);
+  return data;
+}
+
+export async function resendVerificationCode(
+  email: string,
+): Promise<SuccessResponse> {
+  const { data } = await api.post<SuccessResponse>(
+    "/auth/resend-verification",
+    {
+      email,
+    },
+  );
+  return data;
+}
+
+export async function requestPasswordReset(
+  email: string,
+): Promise<SuccessResponse> {
+  const { data } = await api.post<SuccessResponse>("/auth/forgot-password", {
     email,
-    code,
   });
   return data;
 }
 
-// ✅ resend verification code
-export async function resendVerificationCode(email: string) {
-  const { data } = await api.post("/auth/resend-verification", {
-    email,
-  });
+export async function resetPassword(payload: {
+  email: string;
+  code: string;
+  new_password: string;
+}): Promise<SuccessResponse> {
+  const { data } = await api.post<SuccessResponse>(
+    "/auth/reset-password",
+    payload,
+  );
   return data;
 }
 
-// ✅ logout (frontend only)
-export function logoutUser() {
+export async function logoutUser() {
+  const refreshToken = getRefreshToken();
+
   try {
-    localStorage.removeItem("token");
-    localStorage.removeItem("refreshToken");
-    return { success: true };
+    if (refreshToken) {
+      await api.post<SuccessResponse>("/auth/logout", {
+        refresh_token: refreshToken,
+      });
+    }
   } catch (error) {
-    console.error("Logout failed:", error);
-    return { success: false, error };
+    return {
+      success: false,
+      message: getApiErrorMessage(error, "Logout failed"),
+    };
+  } finally {
+    useAuthStore.getState().logout();
   }
+
+  return { success: true, message: "Logged out" };
+}
+
+export async function logoutAllSessions(): Promise<SuccessResponse> {
+  const { data } = await api.post<SuccessResponse>("/auth/logout-all");
+  useAuthStore.getState().logout();
+  return data;
+}
+
+export async function fetchDashboardRedirectUrl(): Promise<string> {
+  const { data } = await api.get<{ redirect_url: string }>(
+    "/auth/dashboard-redirect",
+  );
+  return data.redirect_url;
 }

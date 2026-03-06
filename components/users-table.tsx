@@ -1,6 +1,8 @@
 "use client";
 import { CreateUserPayload } from "@/lib/types";
 import * as React from "react";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { useRoles } from "@/hooks/useManagement";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -62,6 +64,7 @@ type PermissionsData = Record<PermissionKey, boolean>;
 import type { User } from "@/lib/types";
 
 export function UsersTable() {
+  const rolesQuery = useRoles();
   const users = useDashboardStore((s) => s.users);
   const loading = useDashboardStore((s) => s.loading);
   const error = useDashboardStore((s) => s.error);
@@ -87,6 +90,12 @@ export function UsersTable() {
     updatePermissions,
     isUpdating,
   } = usePermissions(selectedUser?.id ?? "");
+  const roleOptions = rolesQuery.data?.map((item) => item.name || item.display_name) ?? [
+    "CEO",
+    "Financial Director",
+    "Member",
+    "Customer",
+  ];
 
   // ✅ Sync permissions ONLY when API returns data
   // In your UsersTable component, update this useEffect:
@@ -221,7 +230,7 @@ export function UsersTable() {
       surname: (formData.get("surname") as string) || "",
       role: (formData.get("role") as string) || "Member",
       password: (formData.get("password") as string) || "",
-      // company_code: (formData.get("company_code") as string) || undefined,
+      company_code: (formData.get("company_code") as string) || "oddiy",
       telegram_id: (formData.get("telegram_id") as string) || undefined,
       default_salary: formData.get("default_salary")
         ? Number(formData.get("default_salary"))
@@ -235,24 +244,8 @@ export function UsersTable() {
       toast.success("User added successfully");
       await fetchDashboard(true);
       setOpen(false);
-    } catch (err) {
-      let message = "Failed to add user. Try again.";
-      if (err instanceof Error) {
-        message = err.message;
-      } else if (
-        err &&
-        typeof err === "object" &&
-        "response" in err &&
-        err.response &&
-        typeof err.response === "object" &&
-        "data" in err.response &&
-        err.response.data &&
-        typeof err.response.data === "object"
-      ) {
-        const data = err.response.data as { message?: string };
-        message = data.message || message;
-      }
-      toast.error(message);
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to add user. Try again."));
     } finally {
       setIsSaving(false);
     }
@@ -494,6 +487,25 @@ export function UsersTable() {
                   <Label>Password *</Label>
                   <Input name="password" type="password" required />
                 </div>
+                <div className="space-y-1">
+                  <Label>Company Code</Label>
+                  <Input name="company_code" defaultValue="oddiy" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Role *</Label>
+                  <select
+                    name="role"
+                    defaultValue="Member"
+                    className="w-full rounded-md border border-input p-2"
+                    required
+                  >
+                    {roleOptions.map((roleOption) => (
+                      <option key={roleOption} value={roleOption}>
+                        {roleOption}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                 <div className="space-y-1">
                   <Label>Default Salary</Label>
@@ -624,14 +636,14 @@ export function UsersTable() {
                   <Label>Company Code</Label>
                   <Input
                     name="company_code"
-                    defaultValue={selectedUser.company_code}
+                    defaultValue={selectedUser.company_code ?? ""}
                   />
                 </div>
                 <div className="space-y-1">
                   <Label>Telegram ID</Label>
                   <Input
                     name="telegram_id"
-                    defaultValue={selectedUser.telegram_id}
+                    defaultValue={selectedUser.telegram_id ?? ""}
                   />
                 </div>
                 <div className="space-y-1">
@@ -639,7 +651,7 @@ export function UsersTable() {
                   <Input
                     name="default_salary"
                     type="number"
-                    defaultValue={selectedUser.default_salary}
+                    defaultValue={selectedUser.default_salary ?? ""}
                   />
                 </div>
                 <div className="space-y-1">
@@ -649,13 +661,11 @@ export function UsersTable() {
                     defaultValue={selectedUser.role}
                     className="w-full border border-input rounded-md p-2"
                   >
-                    <option value="">Select a role</option>
-                    <option value="CEO">CEO</option>
-                    <option value="Financial Director">
-                      Financial Director
-                    </option>
-                    <option value="Member">Member</option>
-                    <option value="Customer">Customer</option>
+                    {roleOptions.map((roleOption) => (
+                      <option key={roleOption} value={roleOption}>
+                        {roleOption}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-1">

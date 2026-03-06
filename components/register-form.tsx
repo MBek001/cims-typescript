@@ -2,9 +2,11 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { serializeRegisterForm, validateRegister } from "@/helpers/authHelpers";
 import { registerUser } from "@/services/authServices";
-import useAuthStore from "@/stores/useAuthStore";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { useRoles } from "@/hooks/useManagement";
 import {
   Card,
   CardHeader,
@@ -27,16 +29,18 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 
-const ROLES = ["Financial Director", "Member", "Customer"];
-
 export default function RegisterForm() {
   const router = useRouter();
-  const setUser = useAuthStore((s) => s.setUser);
-  const setToken = useAuthStore((s) => s.setToken);
+  const rolesQuery = useRoles();
 
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [role, setRole] = useState("Customer");
+  const roleOptions = rolesQuery.data?.map((item) => item.name || item.display_name) ?? [
+    "Customer",
+    "Member",
+    "Financial Director",
+  ];
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -56,34 +60,18 @@ export default function RegisterForm() {
       email: values.email,
       name: values.name,
       surname: values.surname,
-      company_code: "test",
+      company_code: values.company_code || "oddiy",
       password: values.password,
-      
-      
-      role: "Member",
+      telegram_id: values.telegram_id || undefined,
+      role,
     };
 
     try {
       setPending(true);
-      const data = await registerUser(payload);
-      console.log("REGISTER RESPONSE:", data);
-
-      if (data?.access_token) setToken(data.access_token);
-      if (data?.user) setUser(data.user);
-
-      // Always redirect after successful registration
+      await registerUser(payload);
       router.push(`/verify-email?email=${encodeURIComponent(payload.email)}`);
-    } catch (err: any) {
-      console.error("REGISTER ERROR:", err);
-      let message = "Registration failed.";
-
-      if (err?.response?.data?.message) {
-        message = err.response.data.message;
-      } else if (err instanceof Error) {
-        message = err.message;
-      }
-
-      setError(message);
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Registration failed."));
     } finally {
       setPending(false);
     }
@@ -129,9 +117,42 @@ export default function RegisterForm() {
               />
             </div>
 
-           
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="company_code">Company code</Label>
+                <Input
+                  id="company_code"
+                  name="company_code"
+                  defaultValue="oddiy"
+                  disabled={pending}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="telegram_id">Telegram ID</Label>
+                <Input
+                  id="telegram_id"
+                  name="telegram_id"
+                  placeholder="@username or id"
+                  disabled={pending}
+                />
+              </div>
+            </div>
 
-            
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select value={role} onValueChange={setRole} disabled={pending}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roleOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <Separator />
 
@@ -163,9 +184,9 @@ export default function RegisterForm() {
             </div>
             <div className="mt-4 text-center text-sm pb-2">
               Already have an account?{" "}
-              <a href="/login" className="underline underline-offset-4">
+              <Link href="/login" className="underline underline-offset-4">
                 Login
-              </a>
+              </Link>
             </div>
           </CardContent>
 

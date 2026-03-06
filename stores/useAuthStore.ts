@@ -5,22 +5,28 @@ import api from "@/lib/api";
 interface AuthState {
   user: User | null;
   accessToken: string | null;
+  refreshToken: string | null;
   loading: boolean;
   error: string | null;
   setUser: (u: User | null) => void;
   setToken: (token: string | null) => void;
+  setRefreshToken: (token: string | null) => void;
+  setTokens: (accessToken: string | null, refreshToken?: string | null) => void;
   setLoading: (v: boolean) => void;
   logout: () => void;
-  fetchUser: () => Promise<void>;
+  fetchUser: () => Promise<User | null>;
 }
 
-const STORAGE_KEY = "token";
+const ACCESS_TOKEN_KEY = "token";
+const REFRESH_TOKEN_KEY = "refreshToken";
 
 const useAuthStore = create<AuthState>((set, get) => {
   // Init token only once (client-side only)
-  let initialToken: string | null = null;
+  let initialAccessToken: string | null = null;
+  let initialRefreshToken: string | null = null;
   if (typeof window !== "undefined") {
-    initialToken = localStorage.getItem(STORAGE_KEY);
+    initialAccessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+    initialRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
   }
 
   // Stable functions
@@ -32,10 +38,31 @@ const useAuthStore = create<AuthState>((set, get) => {
     set({ accessToken });
     if (typeof window !== "undefined") {
       if (accessToken) {
-        localStorage.setItem(STORAGE_KEY, accessToken);
+        localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
       } else {
-        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(ACCESS_TOKEN_KEY);
       }
+    }
+  };
+
+  const setRefreshToken = (refreshToken: string | null) => {
+    set({ refreshToken });
+    if (typeof window !== "undefined") {
+      if (refreshToken) {
+        localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      } else {
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
+      }
+    }
+  };
+
+  const setTokens = (
+    accessToken: string | null,
+    refreshToken?: string | null,
+  ) => {
+    setToken(accessToken);
+    if (refreshToken !== undefined) {
+      setRefreshToken(refreshToken);
     }
   };
 
@@ -44,9 +71,10 @@ const useAuthStore = create<AuthState>((set, get) => {
   };
 
   const logout = () => {
-    set({ user: null, accessToken: null });
+    set({ user: null, accessToken: null, refreshToken: null, error: null });
     if (typeof window !== "undefined") {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
     }
   };
 
@@ -55,11 +83,23 @@ const useAuthStore = create<AuthState>((set, get) => {
     try {
       const res = await api.get("/auth/me"); // token auto-injected
       set({ user: res.data });
-    } catch (e: any) {
-      set({ error: e?.message || "Failed to fetch user" });
-      if (e?.response?.status === 401) {
+      return res.data;
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Failed to fetch current user";
+      set({ error: message });
+      if (
+        typeof e === "object" &&
+        e !== null &&
+        "response" in e &&
+        typeof e.response === "object" &&
+        e.response !== null &&
+        "status" in e.response &&
+        e.response.status === 401
+      ) {
         get().logout();
       }
+      return null;
     } finally {
       set({ loading: false });
     }
@@ -67,11 +107,14 @@ const useAuthStore = create<AuthState>((set, get) => {
 
   return {
     user: null,
-    accessToken: initialToken,
+    accessToken: initialAccessToken,
+    refreshToken: initialRefreshToken,
     loading: false,
     error: null,
     setUser,
     setToken,
+    setRefreshToken,
+    setTokens,
     setLoading,
     logout,
     fetchUser,
@@ -80,6 +123,10 @@ const useAuthStore = create<AuthState>((set, get) => {
 
 export function getAuthToken() {
   return useAuthStore.getState().accessToken;
+}
+
+export function getRefreshToken() {
+  return useAuthStore.getState().refreshToken;
 }
 
 export default useAuthStore;

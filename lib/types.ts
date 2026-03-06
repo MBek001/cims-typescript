@@ -1,3 +1,5 @@
+import type { AuthResponse, User as AuthUser } from "@/types/auth";
+
 export interface CreateUserPayload {
   email: string;
   name: string;
@@ -10,10 +12,9 @@ export interface CreateUserPayload {
   is_active?: boolean;
 }
 
-export interface User extends Omit<CreateUserPayload, 'password'> {
-  id: string;
-  created_at: string;
-  updated_at: string;
+export interface User extends AuthUser {
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface LoginPayload {
@@ -30,3 +31,5 @@ export interface LoginResponse {
 export interface RefreshTokenResponse {
   access_token: string;
 }
+
+export type { AuthResponse };

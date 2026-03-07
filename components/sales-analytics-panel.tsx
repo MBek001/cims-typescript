@@ -89,6 +89,19 @@ const formatCompactDate = (value?: string) => {
     : value || "-";
 };
 
+const formatCompactDateTime = (value?: string) => {
+  const parsed = value ? new Date(value) : null;
+  return parsed && !Number.isNaN(parsed.getTime())
+    ? parsed.toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : value || "-";
+};
+
 const getLeadText = (item: Record<string, unknown>, keys: string[]) => {
   for (const key of keys) {
     const value = item[key];
@@ -283,6 +296,7 @@ export function SalesAnalyticsPanel() {
                       <TableHead>Name</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Platform</TableHead>
+                      <TableHead>Recall Time</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -300,6 +314,7 @@ export function SalesAnalyticsPanel() {
                           </span>
                         </TableCell>
                         <TableCell className="capitalize">{String(customer.platform ?? "-")}</TableCell>
+                        <TableCell>{formatCompactDateTime(getLeadText(customer, ["recall_time"]))}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

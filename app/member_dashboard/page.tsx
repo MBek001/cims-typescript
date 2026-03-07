@@ -5,7 +5,7 @@ import { PermissionGuard } from "@/components/permissionGuard";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
-const Member: React.FC = () => {
+const MemberDashboardPage: React.FC = () => {
   return (
     <PermissionGuard required={["crm", "update_list", "finance_list"]}>
       <SidebarProvider
@@ -30,4 +30,4 @@ const Member: React.FC = () => {
   );
 };
 
-export default Member;
+export default MemberDashboardPage;

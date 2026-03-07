@@ -5,6 +5,40 @@ export interface SalaryEstimateRecord {
   [key: string]: string | number | boolean | null | undefined;
 }
 
+export interface SalaryEstimateDetail {
+  base_salary: number;
+  total_penalty_points: number;
+  penalty_percentage: number;
+  deduction_amount: number;
+  estimated_salary: number;
+}
+
+export interface SalaryEstimateEmployee {
+  user_id: number;
+  full_name: string;
+  penalties_count: number;
+  salary_estimate: SalaryEstimateDetail;
+}
+
+export interface SalaryEstimateSummary {
+  employees_count: number;
+  total_base_salary: number;
+  total_deduction_amount: number;
+  total_estimated_salary: number;
+}
+
+export interface MemberSalaryEstimatesResponse {
+  period: {
+    year: number;
+    month: number;
+  };
+  filters: {
+    employee_ids: number[];
+  };
+  summary: SalaryEstimateSummary;
+  employees: SalaryEstimateEmployee[];
+}
+
 function normalizeRecordList(data: unknown): GenericUpdateItem[] {
   if (Array.isArray(data)) {
     return data.filter(
@@ -41,4 +75,20 @@ export async function fetchSalaryEstimates(
     `/members/member/salary-estimates?year=${year}&month=${month}`,
   );
   return normalizeRecordList(data);
+}
+
+export async function fetchMemberSalaryEstimates(params: {
+  year: number;
+  month: number;
+  employeeIds: number[];
+}): Promise<MemberSalaryEstimatesResponse> {
+  const query = new URLSearchParams();
+  query.set("year", String(params.year));
+  query.set("month", String(params.month));
+  params.employeeIds.forEach((id) => query.append("employee_ids", String(id)));
+
+  const { data } = await api.get<MemberSalaryEstimatesResponse>(
+    `/members/member/salary-estimates?${query.toString()}`,
+  );
+  return data;
 }

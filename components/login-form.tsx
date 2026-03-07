@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { getApiErrorMessage } from "@/lib/api-error";
-import { validateLogin } from "@/helpers/authHelpers";
-import { fetchDashboardRedirectUrl, loginUser } from "@/services/authServices";
+import { getApiErrorMessage, isUnauthorizedError } from "@/lib/api-error";
+import { getDashboardRouteForUser, validateLogin } from "@/helpers/authHelpers";
+import { fetchCurrentUser, loginUser } from "@/services/authServices";
 import useAuthStore from "@/stores/useAuthStore";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,21 +42,22 @@ export function LoginForm({
     setIsLoading(true);
 
     try {
+      const authState = useAuthStore.getState();
       const response = await loginUser({ email, password });
       if (!response.access_token) {
         throw new Error("No token returned from backend");
       }
 
-      useAuthStore
-        .getState()
-        .setTokens(response.access_token, response.refresh_token ?? null);
-      await useAuthStore.getState().fetchUser();
-
-      const redirectUrl = await fetchDashboardRedirectUrl().catch(
-        () => "/dashboard",
-      );
-      router.push(redirectUrl || "/dashboard");
+      authState.setTokens(response.access_token, response.refresh_token ?? null);
+      const user = await fetchCurrentUser();
+      authState.setUser(user);
+      router.push(getDashboardRouteForUser(user));
     } catch (err: unknown) {
+      if (isUnauthorizedError(err)) {
+        useAuthStore.getState().logout();
+        router.push("/register");
+        return;
+      }
       setError(getApiErrorMessage(err, "Login failed. Please try again."));
     } finally {
       setIsLoading(false);

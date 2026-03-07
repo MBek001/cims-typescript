@@ -46,3 +46,7 @@ export function getApiErrorMessage(
 
   return fallback;
 }
+
+export function isUnauthorizedError(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 401;
+}

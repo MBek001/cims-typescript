@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft, MessageCircle, Shield } from "lucide-react";
+import { isAuthenticated } from "@/helpers/authHelpers";
 import useAuthStore from "@/stores/useAuthStore";
 
 type Props = {
@@ -14,18 +15,36 @@ type Props = {
 export function PermissionGuard({ required, children }: Props) {
   const user = useAuthStore((s) => s.user);
   const loading = useAuthStore((s) => s.loading);
-  const fetchUser = useAuthStore.getState().fetchUser;
+  const fetchUser = useAuthStore((s) => s.fetchUser);
   const router = useRouter();
+  const hasToken = isAuthenticated();
 
-  // Fetch user if not loaded
   React.useEffect(() => {
-    if (!user) {
-      fetchUser().catch(() => {
+    let cancelled = false;
+
+    const verifyAccess = async () => {
+      if (!hasToken) {
         router.push("/login");
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // empty dependency → run once
+        return;
+      }
+
+      if (user) {
+        return;
+      }
+
+      const fetchedUser = await fetchUser();
+      if (!fetchedUser && !cancelled) {
+        router.push("/login");
+      }
+    };
+
+    void verifyAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasToken, user, fetchUser, router]);
+
 
   // Check if user has required permission(s)
   const hasPermission = (
@@ -75,6 +94,10 @@ export function PermissionGuard({ required, children }: Props) {
   const allowed = user?.permissions
     ? hasPermission(user.permissions, required)
     : false;
+
+  if (!hasToken) {
+    return null;
+  }
 
   if (loading || !user) {
     return (
@@ -186,3 +209,5 @@ export function PermissionGuard({ required, children }: Props) {
 
   return <>{children}</>;
 }
+
+

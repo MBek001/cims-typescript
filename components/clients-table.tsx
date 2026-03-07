@@ -121,6 +121,19 @@ const formatDate = (value?: string) => {
     : "-";
 };
 
+const formatDateTime = (value?: string | null) => {
+  const parsed = value ? new Date(value) : null;
+  return parsed && !Number.isNaN(parsed.getTime())
+    ? parsed.toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "-";
+};
+
 export function ClientsTable() {
   const allClients = useClientStore((s) => s.clients);
   const clients = useClientStore((s) => s.filteredClients);
@@ -370,12 +383,12 @@ export function ClientsTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Client</TableHead><TableHead>Platform</TableHead><TableHead>Phone</TableHead><TableHead>Status</TableHead><TableHead>Language</TableHead><TableHead>Assistant</TableHead><TableHead>Audio</TableHead><TableHead>Notes</TableHead><TableHead>Created</TableHead><TableHead className="text-center">Actions</TableHead>
+              <TableHead>Client</TableHead><TableHead>Platform</TableHead><TableHead>Phone</TableHead><TableHead>Status</TableHead><TableHead>Language</TableHead><TableHead>Assistant</TableHead><TableHead>Audio</TableHead><TableHead>Notes</TableHead><TableHead>Recall Time</TableHead><TableHead>Created</TableHead><TableHead className="text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {clients.length === 0 ? (
-              <TableRow><TableCell colSpan={10} className="py-8 text-center text-muted-foreground">No clients found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} className="py-8 text-center text-muted-foreground">No clients found.</TableCell></TableRow>
             ) : clients.map((client) => (
               <TableRow key={String(client.id)}>
                 <TableCell><div className="flex items-center gap-3"><Avatar className="h-9 w-9"><AvatarFallback>{getInitials(client.full_name)}</AvatarFallback></Avatar><div><div className="font-medium">{client.full_name}</div><div className="text-xs text-muted-foreground">{client.username || "-"}</div></div></div></TableCell>
@@ -386,6 +399,7 @@ export function ClientsTable() {
                 <TableCell>{client.assistant_name ? <div className="flex items-center gap-1"><User size={12} className="text-muted-foreground" /><span>{client.assistant_name}</span></div> : "-"}</TableCell>
                 <TableCell>{client.audio_url ? <Button variant="ghost" size="sm" onClick={() => { setPlayingAudioUrl(client.audio_url || ""); setDialogMode("play-audio"); setOpen(true); }}><Volume2 size={16} /></Button> : "-"}</TableCell>
                 <TableCell>{client.notes ? <button type="button" className="flex items-center gap-1 text-left hover:text-primary" onClick={() => { setViewingNote(client.notes || ""); setDialogMode("view-note"); setOpen(true); }}><StickyNote size={14} className="text-muted-foreground" /><span>{client.notes.length > 36 ? `${client.notes.slice(0, 36)}...` : client.notes}</span></button> : "-"}</TableCell>
+                <TableCell>{formatDateTime(client.recall_time)}</TableCell>
                 <TableCell>{formatDate(client.created_at)}</TableCell>
                 <TableCell className="text-center">
                   <DropdownMenu>

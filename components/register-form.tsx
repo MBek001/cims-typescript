@@ -35,11 +35,11 @@ export default function RegisterForm() {
 
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [role, setRole] = useState("Customer");
+  const [role, setRole] = useState("CUSTOMER");
   const roleOptions = rolesQuery.data?.map((item) => item.name || item.display_name) ?? [
-    "Customer",
-    "Member",
-    "Financial Director",
+    "CUSTOMER",
+    "MEMBER",
+    "FINANCIAL DIRECTOR",
   ];
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -47,7 +47,7 @@ export default function RegisterForm() {
     setError(null);
 
     const form = new FormData(e.currentTarget);
-    form.set("role", role);
+    form.set("role", role.toUpperCase());
     const values = serializeRegisterForm(form);
 
     const validationError = validateRegister(values);
@@ -63,7 +63,7 @@ export default function RegisterForm() {
       company_code: values.company_code || "oddiy",
       password: values.password,
       telegram_id: values.telegram_id || undefined,
-      role,
+      role: role.toUpperCase(),
     };
 
     try {

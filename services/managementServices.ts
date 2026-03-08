@@ -42,5 +42,11 @@ export async function fetchStatuses(): Promise<ManagementStatus[]> {
 
 export async function fetchRoles(): Promise<ManagementRole[]> {
   const { data } = await api.get<ManagementRole[]>("/management/roles");
-  return data.filter((role) => role.is_active);
+  return data
+    .filter((role) => role.is_active)
+    .map((role) => ({
+      ...role,
+      name: role.name.toUpperCase(),
+      display_name: role.display_name.toUpperCase(),
+    }));
 }

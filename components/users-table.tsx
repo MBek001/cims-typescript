@@ -92,10 +92,21 @@ export function UsersTable() {
   } = usePermissions(selectedUser?.id ?? "");
   const roleOptions = rolesQuery.data?.map((item) => item.name || item.display_name) ?? [
     "CEO",
-    "Financial Director",
-    "Member",
-    "Customer",
+    "FINANCIAL DIRECTOR",
+    "MEMBER",
+    "CUSTOMER",
   ];
+  const formatRoleLabel = (role: string) => {
+    const normalized = role.replace(/_/g, " ").trim();
+    if (!normalized) return role;
+    if (normalized.toUpperCase() === "CEO") return "CEO";
+    return normalized
+      .toLowerCase()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+  const nativeSelectClassName =
+    "w-full rounded-md border border-input bg-background text-foreground p-2 [color-scheme:light] dark:[color-scheme:dark]";
+  const nativeOptionClassName = "bg-background text-foreground";
 
   // ✅ Sync permissions ONLY when API returns data
   // In your UsersTable component, update this useEffect:
@@ -228,7 +239,7 @@ export function UsersTable() {
       email: (formData.get("email") as string) || "",
       name: (formData.get("name") as string) || "",
       surname: (formData.get("surname") as string) || "",
-      role: (formData.get("role") as string) || "Member",
+      role: ((formData.get("role") as string | null)?.toUpperCase() || "MEMBER"),
       password: (formData.get("password") as string) || "",
       company_code: (formData.get("company_code") as string) || "oddiy",
       telegram_id: (formData.get("telegram_id") as string) || undefined,
@@ -376,9 +387,9 @@ export function UsersTable() {
                   <TableCell className="border border-border">
                     <span
                       className={`inline-block px-2 py-1 rounded-sm text-xs font-medium ${
-                        user.role === "CEO"
+                        user.role?.toUpperCase() === "CEO"
                           ? "bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400"
-                          : user.role === "Financial Director"
+                          : user.role?.toUpperCase() === "FINANCIAL DIRECTOR"
                             ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400"
                             : "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400"
                       }`}
@@ -495,13 +506,17 @@ export function UsersTable() {
                   <Label>Role *</Label>
                   <select
                     name="role"
-                    defaultValue="Member"
-                    className="w-full rounded-md border border-input p-2"
+                    defaultValue="MEMBER"
+                    className={nativeSelectClassName}
                     required
                   >
                     {roleOptions.map((roleOption) => (
-                      <option key={roleOption} value={roleOption}>
-                        {roleOption}
+                      <option
+                        key={roleOption}
+                        value={roleOption}
+                        className={nativeOptionClassName}
+                      >
+                        {formatRoleLabel(roleOption)}
                       </option>
                     ))}
                   </select>
@@ -521,11 +536,15 @@ export function UsersTable() {
                   <select
                     name="is_active"
                     defaultValue="true"
-                    className="w-full border border-input rounded-md p-2"
+                    className={nativeSelectClassName}
                     required
                   >
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
+                    <option value="true" className={nativeOptionClassName}>
+                      Active
+                    </option>
+                    <option value="false" className={nativeOptionClassName}>
+                      Inactive
+                    </option>
                   </select>
                 </div>
                 <Button
@@ -577,7 +596,7 @@ export function UsersTable() {
                     default_salary: formData.get("default_salary")
                       ? Number(formData.get("default_salary"))
                       : undefined,
-                    role: (formData.get("role") as string) || "",
+                    role: ((formData.get("role") as string | null)?.toUpperCase() || ""),
                     is_active: formData.get("is_active") === "true",
                   };
 
@@ -659,11 +678,15 @@ export function UsersTable() {
                   <select
                     name="role"
                     defaultValue={selectedUser.role}
-                    className="w-full border border-input rounded-md p-2"
+                    className={nativeSelectClassName}
                   >
                     {roleOptions.map((roleOption) => (
-                      <option key={roleOption} value={roleOption}>
-                        {roleOption}
+                      <option
+                        key={roleOption}
+                        value={roleOption}
+                        className={nativeOptionClassName}
+                      >
+                        {formatRoleLabel(roleOption)}
                       </option>
                     ))}
                   </select>
@@ -673,10 +696,14 @@ export function UsersTable() {
                   <select
                     name="is_active"
                     defaultValue={selectedUser.is_active ? "true" : "false"}
-                    className="w-full border border-input rounded-md p-2"
+                    className={nativeSelectClassName}
                   >
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
+                    <option value="true" className={nativeOptionClassName}>
+                      Active
+                    </option>
+                    <option value="false" className={nativeOptionClassName}>
+                      Inactive
+                    </option>
                   </select>
                 </div>
                 <Button

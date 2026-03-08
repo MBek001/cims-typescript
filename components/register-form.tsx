@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { serializeRegisterForm, validateRegister } from "@/helpers/authHelpers";
@@ -35,19 +35,32 @@ export default function RegisterForm() {
 
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [role, setRole] = useState("CUSTOMER");
-  const roleOptions = rolesQuery.data?.map((item) => item.name || item.display_name) ?? [
-    "CUSTOMER",
-    "MEMBER",
-    "FINANCIAL DIRECTOR",
-  ];
+  const [role, setRole] = useState("");
+  const roleOptions = useMemo(
+    () =>
+      rolesQuery.data
+        ?.map((item) => item.display_name?.trim())
+        .filter((value): value is string => Boolean(value)) ?? [],
+    [rolesQuery.data],
+  );
+
+  useEffect(() => {
+    if (!role || !roleOptions.includes(role)) {
+      setRole(roleOptions[0] ?? "");
+    }
+  }, [role, roleOptions]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
     const form = new FormData(e.currentTarget);
-    form.set("role", role.toUpperCase());
+    const selectedRole = role.trim();
+    if (!selectedRole) {
+      setError("Role is required.");
+      return;
+    }
+    form.set("role", selectedRole);
     const values = serializeRegisterForm(form);
 
     const validationError = validateRegister(values);
@@ -63,7 +76,7 @@ export default function RegisterForm() {
       company_code: values.company_code || "oddiy",
       password: values.password,
       telegram_id: values.telegram_id || undefined,
-      role: role.toUpperCase(),
+      role: selectedRole,
     };
 
     try {
@@ -140,7 +153,11 @@ export default function RegisterForm() {
 
             <div className="space-y-2">
               <Label>Role</Label>
-              <Select value={role} onValueChange={setRole} disabled={pending}>
+              <Select
+                value={role}
+                onValueChange={setRole}
+                disabled={pending || roleOptions.length === 0}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
@@ -191,7 +208,11 @@ export default function RegisterForm() {
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={pending}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={pending || roleOptions.length === 0}
+            >
               {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {pending ? "Creating account..." : "Create account"}
             </Button>

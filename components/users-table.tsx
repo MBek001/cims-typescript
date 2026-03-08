@@ -90,12 +90,10 @@ export function UsersTable() {
     updatePermissions,
     isUpdating,
   } = usePermissions(selectedUser?.id ?? "");
-  const roleOptions = rolesQuery.data?.map((item) => item.name || item.display_name) ?? [
-    "CEO",
-    "FINANCIAL DIRECTOR",
-    "MEMBER",
-    "CUSTOMER",
-  ];
+  const roleOptions =
+    rolesQuery.data
+      ?.map((item) => item.display_name?.trim())
+      .filter((value): value is string => Boolean(value)) ?? [];
   const formatRoleLabel = (role: string) => {
     const normalized = role.replace(/_/g, " ").trim();
     if (!normalized) return role;
@@ -235,11 +233,17 @@ export function UsersTable() {
     if (isSaving) return;
 
     const formData = new FormData(e.currentTarget as HTMLFormElement);
+    const selectedRole = (formData.get("role") as string | null)?.trim() || "";
+    if (!selectedRole) {
+      toast.error("Role is required");
+      return;
+    }
+
     const payload: CreateUserPayload = {
       email: (formData.get("email") as string) || "",
       name: (formData.get("name") as string) || "",
       surname: (formData.get("surname") as string) || "",
-      role: ((formData.get("role") as string | null)?.toUpperCase() || "MEMBER"),
+      role: selectedRole,
       password: (formData.get("password") as string) || "",
       company_code: (formData.get("company_code") as string) || "oddiy",
       telegram_id: (formData.get("telegram_id") as string) || undefined,
@@ -506,10 +510,16 @@ export function UsersTable() {
                   <Label>Role *</Label>
                   <select
                     name="role"
-                    defaultValue="MEMBER"
+                    defaultValue={roleOptions[0] ?? ""}
                     className={nativeSelectClassName}
                     required
+                    disabled={roleOptions.length === 0}
                   >
+                    {roleOptions.length === 0 && (
+                      <option value="" className={nativeOptionClassName}>
+                        No roles available
+                      </option>
+                    )}
                     {roleOptions.map((roleOption) => (
                       <option
                         key={roleOption}
@@ -550,7 +560,7 @@ export function UsersTable() {
                 <Button
                   type="submit"
                   className="w-full flex items-center justify-center"
-                  disabled={isSaving}
+                  disabled={isSaving || roleOptions.length === 0}
                 >
                   {isSaving && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -596,7 +606,7 @@ export function UsersTable() {
                     default_salary: formData.get("default_salary")
                       ? Number(formData.get("default_salary"))
                       : undefined,
-                    role: ((formData.get("role") as string | null)?.toUpperCase() || ""),
+                    role: (formData.get("role") as string | null) || "",
                     is_active: formData.get("is_active") === "true",
                   };
 

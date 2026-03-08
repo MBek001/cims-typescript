@@ -18,7 +18,7 @@ export function useStatuses() {
 
 export function useRoles() {
   return useQuery<ManagementRole[]>({
-    queryKey: ["management", "roles"],
+    queryKey: ["management", "roles", "display-name-v2"],
     queryFn: fetchRoles,
     staleTime: 5 * 60 * 1000,
   });

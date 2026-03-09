@@ -125,14 +125,18 @@ export function PermissionsOverviewPanel() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={toggleMutation.isPending}
-                      onClick={() => toggleMutation.mutate(user.user_id)}
-                    >
-                      Toggle Active
-                    </Button>
+                    {user.role?.trim().toLowerCase() === "ceo" ? (
+                      <Badge variant="outline">Protected</Badge>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={toggleMutation.isPending}
+                        onClick={() => toggleMutation.mutate(user.user_id)}
+                      >
+                        Toggle Active
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

@@ -39,6 +39,12 @@ export interface MemberSalaryEstimatesResponse {
   employees: SalaryEstimateEmployee[];
 }
 
+function assertInteger(value: number, field: string) {
+  if (!Number.isInteger(value)) {
+    throw new Error(`${field} must be an integer`);
+  }
+}
+
 function normalizeRecordList(data: unknown): GenericUpdateItem[] {
   if (Array.isArray(data)) {
     return data.filter(
@@ -80,15 +86,42 @@ export async function fetchSalaryEstimates(
 export async function fetchMemberSalaryEstimates(params: {
   year: number;
   month: number;
-  employeeIds: number[];
+  employeeIds?: number[];
 }): Promise<MemberSalaryEstimatesResponse> {
+  assertInteger(params.year, "year");
+  assertInteger(params.month, "month");
+
+  const employeeIds = params.employeeIds ?? [];
+  employeeIds.forEach((id) => assertInteger(id, "employee_id"));
+
   const query = new URLSearchParams();
   query.set("year", String(params.year));
   query.set("month", String(params.month));
-  params.employeeIds.forEach((id) => query.append("employee_ids", String(id)));
+  employeeIds.forEach((id) => query.append("employee_ids", String(id)));
 
   const { data } = await api.get<MemberSalaryEstimatesResponse>(
     `/members/member/salary-estimates?${query.toString()}`,
   );
+  return data;
+}
+
+export async function fetchMemberSalaryEstimate(params: {
+  userId: number;
+  year: number;
+  month: number;
+}): Promise<SalaryEstimateEmployee> {
+  assertInteger(params.userId, "user_id");
+  assertInteger(params.year, "year");
+  assertInteger(params.month, "month");
+
+  const query = new URLSearchParams();
+  query.set("user_id", String(params.userId));
+  query.set("year", String(params.year));
+  query.set("month", String(params.month));
+
+  const { data } = await api.get<SalaryEstimateEmployee>(
+    `/members/member/salary-estimate?${query.toString()}`,
+  );
+
   return data;
 }

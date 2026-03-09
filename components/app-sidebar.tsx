@@ -10,6 +10,7 @@ import {
   IconCircleCheck,
   IconAppWindow,
   IconPlugConnected,
+  IconAlertTriangle,
 } from "@tabler/icons-react"
 import { NavMain, type NavItem } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -23,7 +24,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import useAuthStore from "@/stores/useAuthStore";
-import { isAuthenticated } from "@/helpers/authHelpers";
+import { getDashboardRouteForUser, isAuthenticated } from "@/helpers/authHelpers";
 import { useRouter } from "next/navigation";
 
 const navMain: NavItem[] = [
@@ -38,8 +39,8 @@ const navMain: NavItem[] = [
   { title: "Payment", url: "/payment", icon: IconCreditCard, permission: "payment_list" },
   { title: "WordPress", url: "/wordpress", icon: IconAppWindow, permission: "project_toggle" },
   { title: "Updates", url: "/update-list", icon: IconCircleCheck, permission: "update_list" },
+  { title: "Faults", url: "/faults", icon: IconAlertTriangle, permission: "ceo" },
   { title: "Integrations", url: "/integrations", icon: IconPlugConnected, permission: "ceo" },
-  
 ]
 
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
@@ -48,6 +49,26 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const fetchUser = useAuthStore.getState().fetchUser;
   const router = useRouter();
   const [checkedAuth, setCheckedAuth] = React.useState(false);
+
+  const sidebarItems = React.useMemo(() => {
+    const isMemberUser =
+      !!user && getDashboardRouteForUser(user) === "/member_dashboard";
+
+    if (!isMemberUser) {
+      return navMain;
+    }
+
+    return navMain.map((item) =>
+      item.url === "/update-list"
+        ? {
+            ...item,
+            title: "Member Dashboard",
+            url: "/member_dashboard",
+            icon: IconDashboard,
+          }
+        : item,
+    );
+  }, [user]);
 
   // Check authentication & load user
   React.useEffect(() => {
@@ -110,7 +131,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
-        <NavMain items={navMain} />
+        <NavMain items={sidebarItems} />
       </SidebarContent>
 
       <SidebarFooter>

@@ -17,24 +17,36 @@ export function PermissionGuard({ required, children }: Props) {
   const loading = useAuthStore((s) => s.loading);
   const fetchUser = useAuthStore((s) => s.fetchUser);
   const router = useRouter();
-  const hasToken = isAuthenticated();
+  const [authChecked, setAuthChecked] = React.useState(false);
+  const [hasToken, setHasToken] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
 
     const verifyAccess = async () => {
-      if (!hasToken) {
+      const tokenPresent = isAuthenticated();
+
+      if (cancelled) return;
+      setHasToken(tokenPresent);
+
+      if (!tokenPresent) {
+        setAuthChecked(true);
         router.push("/login");
         return;
       }
 
       if (user) {
+        setAuthChecked(true);
         return;
       }
 
       const fetchedUser = await fetchUser();
-      if (!fetchedUser && !cancelled) {
+      if (!cancelled && !fetchedUser) {
         router.push("/login");
+      }
+
+      if (!cancelled) {
+        setAuthChecked(true);
       }
     };
 
@@ -43,7 +55,7 @@ export function PermissionGuard({ required, children }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [hasToken, user, fetchUser, router]);
+  }, [user, fetchUser, router]);
 
 
   // Check if user has required permission(s)
@@ -95,11 +107,7 @@ export function PermissionGuard({ required, children }: Props) {
     ? hasPermission(user.permissions, required)
     : false;
 
-  if (!hasToken) {
-    return null;
-  }
-
-  if (loading || !user) {
+  if (!authChecked || loading) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
@@ -111,6 +119,10 @@ export function PermissionGuard({ required, children }: Props) {
         </div>
       </div>
     );
+  }
+
+  if (!hasToken || !user) {
+    return null;
   }
 
   if (!allowed) {

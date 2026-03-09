@@ -1,11 +1,10 @@
-import React from "react";
 import { AppSidebar } from "@/components/app-sidebar";
-import { IntegrationsPanel } from "@/components/integrations-panel";
+import { FaultsDashboard } from "@/components/faults-dashboard";
 import { PermissionGuard } from "@/components/permissionGuard";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
-export default function IntegrationsPage() {
+export default function FaultsPage() {
   return (
     <PermissionGuard required="ceo">
       <SidebarProvider
@@ -18,12 +17,10 @@ export default function IntegrationsPage() {
       >
         <AppSidebar variant="sidebar" />
         <SidebarInset>
-          <SiteHeader header="Integrations" />
+          <SiteHeader header="Faults" />
           <div className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-2">
-              <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-                <IntegrationsPanel />
-              </div>
+              <FaultsDashboard />
             </div>
           </div>
         </SidebarInset>

@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { ArrowDownRight, ArrowUpRight, Gauge, Target } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
-import { fetchMemberSalaryEstimates } from '@/services/memberServices'
+import { fetchMemberSalaryEstimate } from '@/services/memberServices'
 import { fetchMyUpdateStats } from '@/services/updateTrackingServices'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,8 +21,6 @@ import {
 	ChartTooltipContent,
 	type ChartConfig,
 } from '@/components/ui/chart'
-
-const SALARY_ESTIMATE_YEAR = 2026
 
 const comparisonChartConfig = {
 	current: {
@@ -74,7 +72,9 @@ function TrendBadge({ value }: { value: number }) {
 }
 
 export function MemberDashboard() {
-	const salaryMonth = new Date().getMonth() + 1
+	const now = new Date()
+	const salaryYear = now.getUTCFullYear()
+	const salaryMonth = now.getUTCMonth() + 1
 
 	const statsQuery = useQuery({
 		queryKey: ['member-dashboard', 'my-update-stats'],
@@ -86,8 +86,8 @@ export function MemberDashboard() {
 	const salaryQuery = useQuery({
 		queryKey: [
 			'member-dashboard',
-			'salary-estimates',
-			SALARY_ESTIMATE_YEAR,
+			'salary-estimate',
+			salaryYear,
 			salaryMonth,
 			currentUserId,
 		],
@@ -96,10 +96,10 @@ export function MemberDashboard() {
 				throw new Error('Missing current user id')
 			}
 
-			return fetchMemberSalaryEstimates({
-				year: SALARY_ESTIMATE_YEAR,
+			return fetchMemberSalaryEstimate({
+				userId: currentUserId,
+				year: salaryYear,
 				month: salaryMonth,
-				employeeIds: [currentUserId],
 			})
 		},
 		enabled: typeof currentUserId === 'number' && currentUserId > 0,
@@ -163,12 +163,8 @@ export function MemberDashboard() {
 		{ label: 'Last 3 months', value: stats.percentage_last_3_months },
 	]
 
-	const salaryPayload = salaryQuery.data
-	const mySalaryData =
-		salaryPayload?.employees.find(employee => employee.user_id === stats.user_id) ??
-		null
+	const mySalaryData = salaryQuery.data ?? null
 	const mySalaryEstimate = mySalaryData?.salary_estimate ?? null
-	const salaryEmployeeCount = salaryPayload?.employees.length ?? 0
 	const penaltyProgress = clamp(mySalaryEstimate?.penalty_percentage ?? 0, 0, 100)
 
 	return (
@@ -238,7 +234,7 @@ export function MemberDashboard() {
 
 			<Card className='overflow-hidden border-emerald-500/20 bg-linear-to-br from-emerald-500/10 via-card to-card'>
 				<CardHeader>
-					<CardDescription>{`Salary estimate for ${salaryMonth}/${SALARY_ESTIMATE_YEAR}`}</CardDescription>
+					<CardDescription>{`Salary estimate for ${salaryMonth}/${salaryYear}`}</CardDescription>
 					<CardTitle>My Salary Snapshot</CardTitle>
 					<CardAction>
 						<Badge variant='outline'>Employee #{stats.user_id}</Badge>
@@ -328,13 +324,6 @@ export function MemberDashboard() {
 									</div>
 								</div>
 							</div>
-
-							{salaryEmployeeCount > 1 && (
-								<p className='text-xs text-muted-foreground'>
-									API returned {salaryEmployeeCount} employees, showing only your
-									record.
-								</p>
-							)}
 						</>
 					)}
 				</CardContent>

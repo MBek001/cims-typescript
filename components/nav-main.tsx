@@ -51,6 +51,7 @@ export function NavMain({ items }: { items: NavItem[] }) {
                 >
                   <Link
                     href={item.url}
+                    prefetch={false}
                     className="flex items-center gap-2 w-full"
                     aria-label={item.title}
                   >

@@ -16,6 +16,8 @@ import {
 import { UsersTable } from "@/components/users-table"
 
 export default function Page() {
+  const tabsIdPrefix = "dashboard-main-tabs"
+
   return (
     <SidebarProvider
       style={
@@ -33,18 +35,49 @@ export default function Page() {
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               <Tabs defaultValue="overview" className="px-4">
                 <TabsList>
-                  <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="permissions">Permissions</TabsTrigger>
-                  <TabsTrigger value="messages">Messages</TabsTrigger>
+                  <TabsTrigger
+                    value="overview"
+                    id={`${tabsIdPrefix}-trigger-overview`}
+                    aria-controls={`${tabsIdPrefix}-content-overview`}
+                  >
+                    Overview
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="permissions"
+                    id={`${tabsIdPrefix}-trigger-permissions`}
+                    aria-controls={`${tabsIdPrefix}-content-permissions`}
+                  >
+                    Permissions
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="messages"
+                    id={`${tabsIdPrefix}-trigger-messages`}
+                    aria-controls={`${tabsIdPrefix}-content-messages`}
+                  >
+                    Messages
+                  </TabsTrigger>
                 </TabsList>
-                <TabsContent value="overview" className="space-y-4">
+                <TabsContent
+                  value="overview"
+                  id={`${tabsIdPrefix}-content-overview`}
+                  aria-labelledby={`${tabsIdPrefix}-trigger-overview`}
+                  className="space-y-4"
+                >
                   <SectionCards />
                   <UsersTable />
                 </TabsContent>
-                <TabsContent value="permissions">
+                <TabsContent
+                  value="permissions"
+                  id={`${tabsIdPrefix}-content-permissions`}
+                  aria-labelledby={`${tabsIdPrefix}-trigger-permissions`}
+                >
                   <PermissionsOverviewPanel />
                 </TabsContent>
-                <TabsContent value="messages">
+                <TabsContent
+                  value="messages"
+                  id={`${tabsIdPrefix}-content-messages`}
+                  aria-labelledby={`${tabsIdPrefix}-trigger-messages`}
+                >
                   <CeoMessagesPanel />
                 </TabsContent>
               </Tabs>

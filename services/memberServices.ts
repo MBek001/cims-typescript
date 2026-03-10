@@ -39,6 +39,64 @@ export interface MemberSalaryEstimatesResponse {
   employees: SalaryEstimateEmployee[];
 }
 
+export interface MemberUpdatesAllPeriod {
+  year: number;
+  month: number;
+  month_name: string;
+  reports_count: number;
+  average_update_percentage: number;
+  total_penalty_points: number;
+  total_salary_amount: number;
+  salary_estimate: SalaryEstimateDetail;
+  latest_report_date: string | null;
+}
+
+export interface MemberUpdatesAllEmployee {
+  user_id: number;
+  full_name: string;
+  default_salary: number;
+  summary: {
+    periods_count: number;
+    total_reports: number;
+    average_update_percentage: number;
+  };
+  periods: MemberUpdatesAllPeriod[];
+}
+
+export interface MemberUpdatesAllSummary {
+  employees_count: number;
+  periods_count: number;
+  total_reports: number;
+  average_update_percentage: number;
+}
+
+export interface MemberUpdatesAllResponse {
+  filters: {
+    year: number;
+    month: number;
+    employee_ids: number[];
+  };
+  summary: MemberUpdatesAllSummary;
+  employees: MemberUpdatesAllEmployee[];
+}
+
+export interface AddMemberPenaltyParams {
+  userId: number;
+  year: number;
+  month: number;
+  penaltyPoints: number;
+  reason?: string;
+}
+
+export interface AddMemberPenaltyResponse {
+  message: string;
+  penalty_id: number;
+  user_id: number;
+  year: number;
+  month: number;
+  penalty_points: number;
+}
+
 function assertInteger(value: number, field: string) {
   if (!Number.isInteger(value)) {
     throw new Error(`${field} must be an integer`);
@@ -121,6 +179,66 @@ export async function fetchMemberSalaryEstimate(params: {
 
   const { data } = await api.get<SalaryEstimateEmployee>(
     `/members/member/salary-estimate?${query.toString()}`,
+  );
+
+  return data;
+}
+
+export async function fetchMemberUpdatesAll(params: {
+  year: number;
+  month: number;
+  employeeIds?: number[];
+}): Promise<MemberUpdatesAllResponse> {
+  assertInteger(params.year, "year");
+  assertInteger(params.month, "month");
+
+  const employeeIds = params.employeeIds ?? [];
+  employeeIds.forEach((id) => assertInteger(id, "employee_id"));
+
+  const query = new URLSearchParams();
+  query.set("year", String(params.year));
+  query.set("month", String(params.month));
+  employeeIds.forEach((id) => query.append("employee_ids", String(id)));
+
+  const { data } = await api.get<MemberUpdatesAllResponse>(
+    `/members/member/updates/all?${query.toString()}`,
+  );
+
+  return data;
+}
+
+export async function addMemberPenalty(
+  params: AddMemberPenaltyParams,
+): Promise<AddMemberPenaltyResponse> {
+  assertInteger(params.userId, "user_id");
+  assertInteger(params.year, "year");
+  assertInteger(params.month, "month");
+
+  if (!Number.isFinite(params.penaltyPoints)) {
+    throw new Error("penalty_points must be a finite number");
+  }
+
+  const payload: {
+    user_id: number;
+    year: number;
+    month: number;
+    penalty_points: number;
+    reason?: string;
+  } = {
+    user_id: params.userId,
+    year: params.year,
+    month: params.month,
+    penalty_points: params.penaltyPoints,
+  };
+
+  const reason = params.reason?.trim();
+  if (reason) {
+    payload.reason = reason;
+  }
+
+  const { data } = await api.post<AddMemberPenaltyResponse>(
+    "/members/member/penalties/add",
+    payload,
   );
 
   return data;

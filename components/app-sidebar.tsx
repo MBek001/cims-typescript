@@ -5,11 +5,8 @@ import {
   IconDashboard,
   IconHome,
   IconChartBar,
-  IconReport,
   IconCreditCard,
   IconCircleCheck,
-  IconAppWindow,
-  IconPlugConnected,
   IconAlertTriangle,
 } from "@tabler/icons-react"
 import { NavMain, type NavItem } from "@/components/nav-main"
@@ -35,20 +32,19 @@ const navMain: NavItem[] = [
     permission: "ceo",
   },
   { title: "Sales", url: "/sales", icon: IconChartBar, permission: "crm" },
-  { title: "Finance", url: "/finance", icon: IconReport, permission: "finance_list" },
   { title: "Payment", url: "/payment", icon: IconCreditCard, permission: "payment_list" },
-  { title: "WordPress", url: "/wordpress", icon: IconAppWindow, permission: "project_toggle" },
   { title: "Updates", url: "/update-list", icon: IconCircleCheck, permission: "update_list" },
   { title: "Faults", url: "/faults", icon: IconAlertTriangle, permission: "ceo" },
-  { title: "Integrations", url: "/integrations", icon: IconPlugConnected, permission: "ceo" },
 ]
 
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const user = useAuthStore((s) => s.user);
   const loading = useAuthStore((s) => s.loading);
-  const fetchUser = useAuthStore.getState().fetchUser;
+  const fetchUser = useAuthStore((s) => s.fetchUser);
   const router = useRouter();
-  const [checkedAuth, setCheckedAuth] = React.useState(false);
+  const [checkedAuth, setCheckedAuth] = React.useState(
+    () => !isAuthenticated() || Boolean(useAuthStore.getState().user),
+  );
 
   const sidebarItems = React.useMemo(() => {
     const isMemberUser =
@@ -58,16 +54,32 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
       return navMain;
     }
 
-    return navMain.map((item) =>
-      item.url === "/update-list"
-        ? {
-            ...item,
-            title: "Member Dashboard",
-            url: "/member_dashboard",
-            icon: IconDashboard,
-          }
-        : item,
-    );
+    return navMain.flatMap((item) => {
+      if (item.url !== "/update-list") {
+        return [item];
+      }
+
+      return [
+        {
+          ...item,
+          title: "Member Dashboard",
+          url: "/member_dashboard",
+          icon: IconDashboard,
+        },
+        {
+          ...item,
+          title: "My Monthly Trend",
+          url: "/my-monthly-trend",
+          icon: IconChartBar,
+        },
+        {
+          ...item,
+          title: "Monthly Calendar",
+          url: "/monthly-calendar",
+          icon: IconCircleCheck,
+        },
+      ];
+    });
   }, [user]);
 
   // Check authentication & load user
@@ -77,17 +89,20 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
       return;
     }
 
-    if (!user && !loading) {
-      fetchUser().finally(() => setCheckedAuth(true));
-    } else {
+    if (user) {
       setCheckedAuth(true);
+      return;
+    }
+
+    if (!loading) {
+      fetchUser().finally(() => setCheckedAuth(true));
     }
   }, [user, loading, fetchUser]);
 
   // Redirect if not authenticated
   React.useEffect(() => {
     if (checkedAuth && !isAuthenticated()) {
-      router.push("/login");
+      router.replace("/login");
     }
   }, [checkedAuth, router]);
 

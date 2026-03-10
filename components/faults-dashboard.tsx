@@ -1,9 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, RefreshCcw, ShieldAlert, Users } from "lucide-react";
-import { fetchMemberSalaryEstimates } from "@/services/memberServices";
+import {
+  addMemberPenalty,
+  fetchMemberUpdatesAll,
+  type SalaryEstimateDetail,
+} from "@/services/memberServices";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +35,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 const MONTH_OPTIONS = [
   { value: "1", label: "January" },
@@ -59,6 +72,14 @@ function formatAmount(value: number) {
   return Number.isFinite(value) ? value.toLocaleString() : "0";
 }
 
+const EMPTY_SALARY_ESTIMATE: SalaryEstimateDetail = {
+  base_salary: 0,
+  total_penalty_points: 0,
+  penalty_percentage: 0,
+  deduction_amount: 0,
+  estimated_salary: 0,
+};
+
 export function FaultsDashboard() {
   const now = React.useMemo(() => new Date(), []);
   const [yearInput, setYearInput] = React.useState(
@@ -73,11 +94,21 @@ export function FaultsDashboard() {
   const validYear = Number.isInteger(year) && year >= 2000 && year <= 2100;
   const validMonth = Number.isInteger(month) && month >= 1 && month <= 12;
   const isValidPeriod = validYear && validMonth;
+  const [penaltyDialogOpen, setPenaltyDialogOpen] = React.useState(false);
+  const [selectedEmployee, setSelectedEmployee] = React.useState<{
+    user_id: number;
+    full_name: string;
+  } | null>(null);
+  const [penaltyPointsInput, setPenaltyPointsInput] = React.useState("");
+  const [reasonInput, setReasonInput] = React.useState("");
+  const [penaltyFormError, setPenaltyFormError] = React.useState<string | null>(
+    null,
+  );
 
   const faultsQuery = useQuery({
     queryKey: ["ceo", "faults-dashboard", year, month],
     queryFn: () =>
-      fetchMemberSalaryEstimates({
+      fetchMemberUpdatesAll({
         year,
         month,
         employeeIds: [],
@@ -86,11 +117,100 @@ export function FaultsDashboard() {
   });
 
   const payload = faultsQuery.data;
-  const summary = payload?.summary;
-  const employees = payload?.employees ?? [];
+  const employees = React.useMemo(() => {
+    if (!payload) {
+      return [];
+    }
+
+    return payload.employees.map((employee) => {
+      const selectedPeriod =
+        employee.periods.find((period) => period.year === year && period.month === month) ??
+        employee.periods[0];
+
+      const salaryEstimate = selectedPeriod?.salary_estimate
+        ? selectedPeriod.salary_estimate
+        : {
+            ...EMPTY_SALARY_ESTIMATE,
+            base_salary: employee.default_salary ?? 0,
+            estimated_salary: employee.default_salary ?? 0,
+          };
+
+      return {
+        user_id: employee.user_id,
+        full_name: employee.full_name,
+        penalties_count: selectedPeriod?.reports_count ?? employee.summary.total_reports ?? 0,
+        salary_estimate: salaryEstimate,
+      };
+    });
+  }, [payload, year, month]);
+
+  const summary = React.useMemo(() => {
+    const totalEstimatedSalary = employees.reduce(
+      (sum, employee) => sum + employee.salary_estimate.estimated_salary,
+      0,
+    );
+    const totalDeductionAmount = employees.reduce(
+      (sum, employee) => sum + employee.salary_estimate.deduction_amount,
+      0,
+    );
+
+    return {
+      employees_count: payload?.summary.employees_count ?? employees.length,
+      total_estimated_salary: totalEstimatedSalary,
+      total_deduction_amount: totalDeductionAmount,
+    };
+  }, [payload, employees]);
+
   const riskyEmployees = employees.filter(
     (employee) => employee.salary_estimate.penalty_percentage > 0,
   );
+
+  const addPenaltyMutation = useMutation({
+    mutationFn: addMemberPenalty,
+  });
+
+  function openPenaltyDialog(employee: { user_id: number; full_name: string }) {
+    setSelectedEmployee(employee);
+    setPenaltyPointsInput("");
+    setReasonInput("");
+    setPenaltyFormError(null);
+    setPenaltyDialogOpen(true);
+  }
+
+  async function handlePenaltySubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedEmployee || !isValidPeriod) {
+      setPenaltyFormError("Invalid user or period.");
+      return;
+    }
+
+    const penaltyPoints = Number.parseFloat(penaltyPointsInput.replace(",", "."));
+    if (!Number.isFinite(penaltyPoints)) {
+      setPenaltyFormError("Penalty points must be a valid number.");
+      return;
+    }
+    if (penaltyPoints <= 0) {
+      setPenaltyFormError("Penalty points must be greater than 0.");
+      return;
+    }
+
+    setPenaltyFormError(null);
+
+    try {
+      await addPenaltyMutation.mutateAsync({
+        userId: selectedEmployee.user_id,
+        year,
+        month,
+        penaltyPoints,
+        reason: reasonInput,
+      });
+      setPenaltyDialogOpen(false);
+      await faultsQuery.refetch();
+    } catch {
+      setPenaltyFormError("Failed to add penalty points. Please try again.");
+    }
+  }
 
   return (
     <div className="space-y-6 px-4 py-6">
@@ -166,7 +286,7 @@ export function FaultsDashboard() {
         <Card className="border-destructive/40 bg-destructive/5">
           <CardContent className="space-y-3 py-4">
             <p className="text-sm text-destructive">
-              Failed to load `/members/member/salary-estimates`.
+              Failed to load `/members/member/updates/all`.
             </p>
             <Button variant="outline" size="sm" onClick={() => void faultsQuery.refetch()}>
               Try again
@@ -244,9 +364,24 @@ export function FaultsDashboard() {
                     <CardDescription>{`User #${employee.user_id}`}</CardDescription>
                     <CardTitle className="text-lg">{employee.full_name}</CardTitle>
                     <CardAction>
-                      <Badge variant={hasDeduction ? "destructive" : "outline"}>
-                        {hasDeduction ? "Has deduction" : "Clean"}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasDeduction ? "destructive" : "outline"}>
+                          {hasDeduction ? "Has deduction" : "Clean"}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="cursor-pointer"
+                          onClick={() =>
+                            openPenaltyDialog({
+                              user_id: employee.user_id,
+                              full_name: employee.full_name,
+                            })
+                          }
+                        >
+                          Add penalty
+                        </Button>
+                      </div>
                     </CardAction>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -354,6 +489,79 @@ export function FaultsDashboard() {
           </Card>
         </>
       )}
+
+      <Dialog
+        open={penaltyDialogOpen}
+        onOpenChange={(open) => {
+          setPenaltyDialogOpen(open);
+          if (!open) {
+            setPenaltyFormError(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Penalty Points</DialogTitle>
+            <DialogDescription>
+              {selectedEmployee
+                ? `User #${selectedEmployee.user_id} - ${selectedEmployee.full_name}`
+                : "Select a user to add penalty points."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form className="space-y-4" onSubmit={(event) => void handlePenaltySubmit(event)}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Year</Label>
+                <Input value={String(year)} disabled />
+              </div>
+              <div className="space-y-2">
+                <Label>Month</Label>
+                <Input value={String(month)} disabled />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="penalty-points">Penalty points</Label>
+              <Input
+                id="penalty-points"
+                value={penaltyPointsInput}
+                inputMode="decimal"
+                placeholder="10"
+                onChange={(event) => setPenaltyPointsInput(event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="penalty-reason">Reason (optional)</Label>
+              <Textarea
+                id="penalty-reason"
+                value={reasonInput}
+                placeholder="Enter reason"
+                onChange={(event) => setReasonInput(event.target.value)}
+              />
+            </div>
+
+            {penaltyFormError ? (
+              <p className="text-sm text-destructive">{penaltyFormError}</p>
+            ) : null}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPenaltyDialogOpen(false)}
+                disabled={addPenaltyMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={addPenaltyMutation.isPending || !selectedEmployee}>
+                {addPenaltyMutation.isPending ? "Saving..." : "Save penalty"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

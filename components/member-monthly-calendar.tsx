@@ -68,7 +68,7 @@ function getWeekFilterOptions(totalDays: number): Array<{ value: WeekFilterValue
   return [
     { value: "all", label: "All full week" },
     ...Array.from({ length: weekCount }, (_, index) => ({
-      value: String(index + 1),
+      value: `${index + 1}` as `${number}`,
       label: `Week ${index + 1}`,
     })),
   ];
@@ -268,7 +268,7 @@ export function MemberMonthlyCalendar() {
                   <Select
                     value={weekFilter}
                     onValueChange={(value) => {
-                      setWeekFilter(value);
+                      setWeekFilter(value as WeekFilterValue);
                     }}
                   >
                     <SelectTrigger id="member-calendar-week" className="w-[180px] cursor-pointer">

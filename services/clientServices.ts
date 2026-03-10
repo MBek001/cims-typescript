@@ -14,7 +14,7 @@ export interface BackendClient {
   customer_type?: string | null;
   conversation_language: string | null;
   aisummary?: string | null;
-  audio: string | null;
+  audio?: string | null;
   audio_file_id: string | null;
   audio_url: string | null;
   created_at: string;
@@ -61,6 +61,10 @@ export interface CrmStatsResponse {
 export interface DashboardResponse extends Partial<CrmStatsResponse> {
   customers?: BackendClient[];
   sales?: BackendClient[];
+  page?: number;
+  page_size?: number;
+  total_items?: number;
+  total_pages?: number;
   status_stats?: Record<string, number>;
   status_choices?: CustomerStatusChoice[];
   permissions?: string[];
@@ -70,6 +74,10 @@ export interface DashboardResponse extends Partial<CrmStatsResponse> {
 
 export interface CrmDashboardResponse {
   customers: Client[];
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
   status_stats: Record<string, number>;
   status_dict: Record<string, number>;
   status_percentages: Record<string, number>;
@@ -101,9 +109,11 @@ export interface CustomerListFilters {
 }
 
 export interface CrmDashboardParams {
-  search?: string;
-  status_filter?: string;
+  search?: string | null;
+  status_filter?: string | null;
   show_all?: boolean;
+  page?: number;
+  page_size?: number;
 }
 
 export type CrmStatsPeriodResponse = unknown;
@@ -130,7 +140,7 @@ const transformBackendToFrontend = (backend: BackendClient): Client => ({
   customer_type: backend.customer_type ?? null,
   conversation_language: backend.conversation_language,
   aisummary: backend.aisummary ?? null,
-  audio: backend.audio,
+  audio: backend.audio ?? null,
   audio_file_id: backend.audio_file_id,
   audio_url: backend.audio_url,
   created_at: backend.created_at,
@@ -165,6 +175,12 @@ const extractCustomers = (data: unknown): BackendClient[] => {
 
 const clampLimit = (limit: number, min = 1, max = 500) =>
   Math.min(Math.max(Number.isFinite(limit) ? limit : min, min), max);
+
+const clampPage = (page: number, min = 1) =>
+  Math.max(Number.isFinite(page) ? Math.floor(page) : min, min);
+
+const clampDashboardPageSize = (size: number, min = 1, max = 50) =>
+  Math.min(Math.max(Number.isFinite(size) ? Math.floor(size) : min, min), max);
 
 const toComparableDate = (value?: string) => {
   const parsed = value ? new Date(value) : null;
@@ -248,6 +264,19 @@ const hasCreateResponseId = (value: unknown): value is CreateResponse =>
       typeof (value as { id?: unknown }).id === "number",
   );
 
+const isNotFoundError = (error: unknown) => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  if (!("response" in error)) {
+    return false;
+  }
+
+  const response = (error as { response?: { status?: unknown } }).response;
+  return response?.status === 404;
+};
+
 export const getLatestCustomers = async (limit = 50): Promise<Client[]> => {
   const safeLimit = clampLimit(limit);
   const { data } = await api.get<BackendClient[]>(
@@ -288,11 +317,23 @@ export const getCrmDashboard = async (
     query.set("show_all", String(params.show_all));
   }
 
+  if (typeof params?.page === "number") {
+    query.set("page", String(clampPage(params.page)));
+  }
+
+  if (typeof params?.page_size === "number") {
+    query.set("page_size", String(clampDashboardPageSize(params.page_size)));
+  }
+
   const suffix = query.toString() ? `?${query.toString()}` : "";
   const { data } = await api.get<DashboardResponse>(`/crm/dashboard${suffix}`);
 
   return {
     customers: extractCustomers(data).map(transformBackendToFrontend),
+    page: data.page ?? 1,
+    page_size: data.page_size ?? 50,
+    total_items: data.total_items ?? 0,
+    total_pages: data.total_pages ?? 0,
     status_stats: data.status_stats ?? {},
     status_dict: data.status_dict ?? {},
     status_percentages: data.status_percentages ?? {},
@@ -366,10 +407,17 @@ export const getClients = async (
   filters?: CustomerListFilters,
 ): Promise<Client[]> => {
   try {
-    const clients = await getLatestCustomers(500);
+    const dashboardData = await getCrmDashboard({
+      search: filters?.search ?? null,
+      status_filter: filters?.status ?? null,
+      show_all: filters?.show_all ?? false,
+      page: 1,
+      page_size: 50,
+    });
+    const clients = dashboardData.customers;
     return applyLocalCustomerFilters(clients, filters);
-  } catch (error: any) {
-    if (error.response?.status === 404) {
+  } catch (error: unknown) {
+    if (isNotFoundError(error)) {
       return [];
     }
 
@@ -425,8 +473,8 @@ export const filterClientsByPlatform = async (
     );
 
     return extractCustomers(data).map(transformBackendToFrontend);
-  } catch (error: any) {
-    if (error.response?.status === 404) {
+  } catch (error: unknown) {
+    if (isNotFoundError(error)) {
       return [];
     }
 
@@ -454,8 +502,8 @@ export const filterClientsByDate = async (
 
     const { data } = await api.get<BackendClient[]>(url);
     return extractCustomers(data).map(transformBackendToFrontend);
-  } catch (error: any) {
-    if (error.response?.status === 404) {
+  } catch (error: unknown) {
+    if (isNotFoundError(error)) {
       return [];
     }
 

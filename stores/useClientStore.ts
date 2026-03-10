@@ -136,8 +136,13 @@ const useClientStore = create<ClientStore>((set, get) => ({
   fetchClients: async () => {
     set({ loading: true, error: null });
     try {
-      const data = await getClients();
       const filters = get().filters;
+      const data = await getClients({
+        search: filters.search || undefined,
+        status: filters.status || undefined,
+        phone: filters.phoneNumber || undefined,
+        show_all: filters.show_all,
+      });
       set({ clients: data, filteredClients: applyClientFilters(data, filters) });
     } catch (err) {
       set({

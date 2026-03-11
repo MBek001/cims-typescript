@@ -73,6 +73,7 @@ export interface MyProfileUser {
   name: string;
   telegram_id: string | null;
   role: string;
+  is_active?: boolean;
 }
 
 export interface MyProfileStatistics {
@@ -85,9 +86,11 @@ export interface MyProfileStatistics {
 }
 
 export interface MyProfileRecentUpdate {
+  id?: number;
   date: string;
   content: string;
   is_valid: boolean | null;
+  created_at?: string;
 }
 
 export interface MyProfileResponse {
@@ -133,6 +136,111 @@ function normalizeUpdateList(data: unknown): GenericUpdateItem[] {
   }
 
   return [];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readNumber(source: Record<string, unknown>, key: string) {
+  const value = source[key];
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function readString(source: Record<string, unknown>, key: string) {
+  const value = source[key];
+  return typeof value === "string" ? value : null;
+}
+
+function readBoolean(source: Record<string, unknown>, key: string) {
+  const value = source[key];
+  return typeof value === "boolean" ? value : null;
+}
+
+function normalizeMyProfileResponse(payload: unknown): MyProfileResponse {
+  const root = isRecord(payload) ? payload : {};
+  const userSource = isRecord(root.user) ? root.user : {};
+  const overallSource = isRecord(root.overall_stats) ? root.overall_stats : {};
+  const statisticsSource = isRecord(root.statistics) ? root.statistics : {};
+  const recentRaw = Array.isArray(root.recent_updates) ? root.recent_updates : [];
+
+  const userId =
+    readNumber(userSource, "id") ??
+    readNumber(root, "user_id") ??
+    0;
+  const userName =
+    readString(userSource, "name") ??
+    readString(root, "user_name") ??
+    "";
+
+  const normalizedRecentUpdates: MyProfileRecentUpdate[] = recentRaw
+    .filter(isRecord)
+    .map((item) => ({
+      id: readNumber(item, "id") ?? undefined,
+      date: readString(item, "date") ?? readString(item, "update_date") ?? "",
+      content:
+        readString(item, "content") ??
+        readString(item, "update_content") ??
+        "",
+      is_valid: readBoolean(item, "is_valid"),
+      created_at:
+        readString(item, "created_at") ??
+        undefined,
+    }))
+    .filter((item) => item.date.length > 0 || item.content.length > 0);
+
+  const thisWeekUpdates =
+    readNumber(overallSource, "updates_this_week") ??
+    readNumber(root, "updates_this_week") ??
+    0;
+  const thisMonthUpdates =
+    readNumber(overallSource, "updates_this_month") ??
+    readNumber(root, "updates_this_month") ??
+    readNumber(statisticsSource, "update_days") ??
+    0;
+
+  return {
+    user: {
+      id: userId,
+      name: userName,
+      telegram_id: readString(userSource, "telegram_id"),
+      role: readString(userSource, "role") ?? "",
+      is_active: readBoolean(userSource, "is_active") ?? undefined,
+    },
+    statistics: {
+      total_updates:
+        readNumber(overallSource, "total_updates") ??
+        readNumber(root, "total_updates") ??
+        0,
+      this_week: thisWeekUpdates,
+      this_month: thisMonthUpdates,
+      percentage_this_week:
+        readNumber(overallSource, "percentage_this_week") ??
+        readNumber(root, "percentage_this_week") ??
+        0,
+      percentage_this_month:
+        readNumber(overallSource, "percentage_this_month") ??
+        readNumber(root, "percentage_this_month") ??
+        readNumber(statisticsSource, "percentage") ??
+        0,
+      percentage_last_3_months:
+        readNumber(overallSource, "percentage_last_3_months") ??
+        readNumber(root, "percentage_last_3_months") ??
+        0,
+    },
+    recent_updates: normalizedRecentUpdates,
+  };
 }
 
 export async function fetchCompanyUpdateStats(): Promise<CompanyUpdateStats> {
@@ -193,8 +301,8 @@ export async function fetchMyTrends(): Promise<MyTrendsResponse> {
 }
 
 export async function fetchMyProfile(): Promise<MyProfileResponse> {
-  const { data } = await api.get<MyProfileResponse>("/update-tracking/my-profile");
-  return data;
+  const { data } = await api.get<unknown>("/update-tracking/my-report");
+  return normalizeMyProfileResponse(data);
 }
 
 export async function fetchAllUsersMonthlyUpdates(params: {

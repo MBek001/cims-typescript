@@ -5,7 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowDownRight, ArrowUpRight, CalendarDays, Gauge, Target, TrendingUp } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { fetchMemberSalaryEstimate } from "@/services/memberServices";
-import { fetchMyProfile, fetchMyUpdateStats } from "@/services/updateTrackingServices";
+import {
+  fetchMyDailyCalendar,
+  fetchMyProfile,
+  fetchMyUpdateStats,
+} from "@/services/updateTrackingServices";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +26,14 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import {
+  getAlignedPreviousMonthRange,
+  getAlignedPreviousWeekRange,
+  getElapsedMonthRange,
+  getElapsedWeekRange,
+  getShiftedMonth,
+  getUpdateTrendComparison,
+} from "@/lib/update-tracking-period";
 
 const comparisonChartConfig = {
   current: {
@@ -87,6 +99,7 @@ export function MemberDashboard() {
   const now = new Date();
   const salaryYear = now.getUTCFullYear();
   const salaryMonth = now.getUTCMonth() + 1;
+  const previousMonthPeriod = getShiftedMonth(salaryYear, salaryMonth, -1);
 
   const statsQuery = useQuery({
     queryKey: ["member-dashboard", "my-update-stats"],
@@ -94,8 +107,27 @@ export function MemberDashboard() {
   });
 
   const profileQuery = useQuery({
-    queryKey: ["member-dashboard", "my-profile"],
+    queryKey: ["member-dashboard", "my-report"],
     queryFn: fetchMyProfile,
+  });
+
+  const currentMonthCalendarQuery = useQuery({
+    queryKey: ["member-dashboard", "my-daily-calendar", salaryYear, salaryMonth],
+    queryFn: () => fetchMyDailyCalendar({ year: salaryYear, month: salaryMonth }),
+  });
+
+  const previousMonthCalendarQuery = useQuery({
+    queryKey: [
+      "member-dashboard",
+      "my-daily-calendar",
+      previousMonthPeriod.year,
+      previousMonthPeriod.month,
+    ],
+    queryFn: () =>
+      fetchMyDailyCalendar({
+        year: previousMonthPeriod.year,
+        month: previousMonthPeriod.month,
+      }),
   });
 
   const currentUserId = profileQuery.data?.user.id ?? statsQuery.data?.user_id;
@@ -152,43 +184,120 @@ export function MemberDashboard() {
   const displayUserId = profileUser?.id ?? stats.user_id;
   const displayRole = profileUser?.role;
   const totalUpdatesValue = profileStatistics?.total_updates ?? stats.total_updates;
-  const thisWeekValue = profileStatistics?.this_week ?? stats.updates_this_week;
-  const thisMonthValue = profileStatistics?.this_month ?? stats.updates_this_month;
-  const weeklyDelta = stats.updates_this_week - stats.updates_last_week;
-  const monthlyDelta = stats.updates_this_month - stats.updates_last_month;
-  const weeklyProgressRaw =
-    stats.expected_updates_per_week > 0
+  const updateDates = [
+    ...(currentMonthCalendarQuery.data?.calendar ?? [])
+      .filter((day) => day.has_update)
+      .map((day) => day.date),
+    ...(previousMonthCalendarQuery.data?.calendar ?? [])
+      .filter((day) => day.has_update)
+      .map((day) => day.date),
+  ];
+  const canUseElapsedComparisons = Boolean(
+    currentMonthCalendarQuery.data && previousMonthCalendarQuery.data,
+  );
+  const currentWeekRange = getElapsedWeekRange({ today: now });
+  const previousWeekRange = getAlignedPreviousWeekRange({ today: now });
+  const currentMonthRange = getElapsedMonthRange({
+    year: salaryYear,
+    month: salaryMonth,
+    today: now,
+  });
+  const previousMonthRange = getAlignedPreviousMonthRange({
+    year: salaryYear,
+    month: salaryMonth,
+    today: now,
+  });
+  const weeklyTrend = getUpdateTrendComparison({
+    updates: updateDates,
+    currentRange: currentWeekRange.range,
+    previousRange: previousWeekRange,
+    today: now,
+  });
+  const monthlyTrend = getUpdateTrendComparison({
+    updates: updateDates,
+    currentRange: currentMonthRange.range,
+    previousRange: previousMonthRange,
+    today: now,
+  });
+  const expectedWeekUpdates = canUseElapsedComparisons
+    ? weeklyTrend.current.expectedCount
+    : stats.expected_updates_per_week;
+  const thisWeekValue = canUseElapsedComparisons
+    ? weeklyTrend.current.actualCount
+    : profileStatistics?.this_week ?? stats.updates_this_week;
+  const thisMonthValue = canUseElapsedComparisons
+    ? monthlyTrend.current.actualCount
+    : profileStatistics?.this_month ?? stats.updates_this_month;
+  const weeklyDelta = canUseElapsedComparisons
+    ? weeklyTrend.deltaCount
+    : stats.updates_this_week - stats.updates_last_week;
+  const monthlyDelta = canUseElapsedComparisons
+    ? monthlyTrend.deltaCount
+    : stats.updates_this_month - stats.updates_last_month;
+  const weeklyProgressRaw = canUseElapsedComparisons
+    ? weeklyTrend.current.completionRate
+    : stats.expected_updates_per_week > 0
       ? (stats.updates_this_week / stats.expected_updates_per_week) * 100
       : 0;
   const weeklyProgress = clamp(weeklyProgressRaw, 0, 100);
-  const remainingToTarget = Math.max(
-    stats.expected_updates_per_week - stats.updates_this_week,
-    0,
-  );
-  const overTarget = Math.max(
-    stats.updates_this_week - stats.expected_updates_per_week,
-    0,
-  );
+  const remainingToTarget = canUseElapsedComparisons
+    ? weeklyTrend.current.missingCount
+    : Math.max(stats.expected_updates_per_week - stats.updates_this_week, 0);
+  const overTarget = canUseElapsedComparisons
+    ? Math.max(
+        weeklyTrend.current.actualCount - weeklyTrend.current.expectedCount,
+        0,
+      )
+    : Math.max(stats.updates_this_week - stats.expected_updates_per_week, 0);
 
   const comparisonChartData = [
     {
       period: "Week",
-      current: stats.updates_this_week,
-      previous: stats.updates_last_week,
+      current: canUseElapsedComparisons
+        ? weeklyTrend.current.actualCount
+        : stats.updates_this_week,
+      previous: canUseElapsedComparisons
+        ? weeklyTrend.previous.actualCount
+        : stats.updates_last_week,
     },
     {
       period: "Month",
-      current: stats.updates_this_month,
-      previous: stats.updates_last_month,
+      current: canUseElapsedComparisons
+        ? monthlyTrend.current.actualCount
+        : stats.updates_this_month,
+      previous: canUseElapsedComparisons
+        ? monthlyTrend.previous.actualCount
+        : stats.updates_last_month,
     },
   ];
 
   const completionRows = [
-    { label: "This week", value: profileStatistics?.percentage_this_week ?? stats.percentage_this_week },
-    { label: "Last week", value: stats.percentage_last_week },
-    { label: "This month", value: profileStatistics?.percentage_this_month ?? stats.percentage_this_month },
+    {
+      label: "This week",
+      value: canUseElapsedComparisons
+        ? weeklyTrend.current.completionRate
+        : profileStatistics?.percentage_this_week ?? stats.percentage_this_week,
+    },
+    {
+      label: "Last week",
+      value: canUseElapsedComparisons
+        ? weeklyTrend.previous.completionRate
+        : stats.percentage_last_week,
+    },
+    {
+      label: "This month",
+      value: canUseElapsedComparisons
+        ? monthlyTrend.current.completionRate
+        : profileStatistics?.percentage_this_month ?? stats.percentage_this_month,
+    },
     { label: "Last 3 months", value: profileStatistics?.percentage_last_3_months ?? stats.percentage_last_3_months },
   ];
+  const profileWeekCompletion = canUseElapsedComparisons
+    ? weeklyTrend.current.completionRate
+    : profileStatistics?.percentage_this_week ?? 0;
+  const profileMonthCompletion = canUseElapsedComparisons
+    ? monthlyTrend.current.completionRate
+    : profileStatistics?.percentage_this_month ?? 0;
 
   const mySalaryData = salaryQuery.data ?? null;
   const mySalaryEstimate = mySalaryData?.salary_estimate ?? null;
@@ -225,16 +334,16 @@ export function MemberDashboard() {
         <CardContent className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-lg border border-border/60 bg-background/70 p-3">
             <p className="text-xs text-muted-foreground">
-              Expected updates/week
+              Expected updates (to date)
             </p>
             <p className="mt-1 text-2xl font-semibold tabular-nums">
-              {stats.expected_updates_per_week.toLocaleString()}
+              {expectedWeekUpdates.toLocaleString()}
             </p>
           </div>
           <div className="rounded-lg border border-border/60 bg-background/70 p-3">
             <p className="text-xs text-muted-foreground">This week progress</p>
             <p className="mt-1 text-2xl font-semibold tabular-nums">
-              {stats.updates_this_week.toLocaleString()}
+              {thisWeekValue.toLocaleString()}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {overTarget > 0
@@ -408,7 +517,7 @@ export function MemberDashboard() {
         <CardHeader>
           <CardTitle>My Profile</CardTitle>
           <CardDescription>
-            Profile and recent updates from `/update-tracking/my-profile`.
+            Profile and recent updates.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -417,7 +526,7 @@ export function MemberDashboard() {
           ) : profileQuery.isError ? (
             <div className="space-y-3">
               <p className="text-sm text-destructive">
-                Failed to load `/update-tracking/my-profile`.
+                Failed to load profile data.
               </p>
               <Button
                 variant="outline"
@@ -451,14 +560,14 @@ export function MemberDashboard() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">This week</span>
                     <span className="font-medium tabular-nums">
-                      {formatPercent(profileStatistics?.percentage_this_week ?? 0)}
+                      {formatPercent(profileWeekCompletion)}
                     </span>
                   </div>
                   <div className="h-2 rounded-full bg-muted">
                     <div
                       className="h-2 rounded-full bg-primary transition-all"
                       style={{
-                        width: `${clamp(profileStatistics?.percentage_this_week ?? 0, 0, 100)}%`,
+                        width: `${clamp(profileWeekCompletion, 0, 100)}%`,
                       }}
                     />
                   </div>
@@ -466,14 +575,14 @@ export function MemberDashboard() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">This month</span>
                     <span className="font-medium tabular-nums">
-                      {formatPercent(profileStatistics?.percentage_this_month ?? 0)}
+                      {formatPercent(profileMonthCompletion)}
                     </span>
                   </div>
                   <div className="h-2 rounded-full bg-muted">
                     <div
                       className="h-2 rounded-full bg-primary transition-all"
                       style={{
-                        width: `${clamp(profileStatistics?.percentage_this_month ?? 0, 0, 100)}%`,
+                        width: `${clamp(profileMonthCompletion, 0, 100)}%`,
                       }}
                     />
                   </div>
@@ -599,10 +708,10 @@ export function MemberDashboard() {
 
             <div className="rounded-lg border border-dashed bg-muted/20 p-3">
               <p className="text-xs text-muted-foreground">
-                Expected updates per week
+                Expected updates (to date)
               </p>
               <p className="mt-1 text-xl font-semibold tabular-nums">
-                {stats.expected_updates_per_week.toLocaleString()}
+                {expectedWeekUpdates.toLocaleString()}
               </p>
             </div>
           </CardContent>

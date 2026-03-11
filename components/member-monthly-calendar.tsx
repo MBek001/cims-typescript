@@ -36,6 +36,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import {
+  getElapsedMonthRange,
+  getUpdateMetricsForRange,
+  isFutureDate,
+} from "@/lib/update-tracking-period";
 
 const MONTH_OPTIONS = [
   { value: "1", label: "January" },
@@ -128,7 +133,7 @@ function formatDateTime(value?: string | null) {
   });
 }
 
-function getDayStatusView(day: MyDailyCalendarItem) {
+function getDayStatusView(day: MyDailyCalendarItem, today: Date) {
   if (day.is_sunday) {
     return {
       label: "Sunday",
@@ -144,6 +149,15 @@ function getDayStatusView(day: MyDailyCalendarItem) {
       badgeVariant: "success" as const,
       badgeClassName: "",
       cardClassName: "border-emerald-500/30 bg-emerald-500/10",
+    };
+  }
+
+  if (isFutureDate(day.date, today)) {
+    return {
+      label: "Future",
+      badgeVariant: "outline" as const,
+      badgeClassName: "text-muted-foreground",
+      cardClassName: "border-border/60 bg-muted/20",
     };
   }
 
@@ -209,10 +223,32 @@ export function MemberMonthlyCalendar() {
   });
 
   const payload = calendarQuery.data;
-  const completion = clamp(payload?.percentage ?? 0, 0, 100);
-  const workingDays = payload?.working_days ?? 0;
-  const updateDays = payload?.update_days ?? 0;
-  const missingDays = payload?.missing_days ?? 0;
+  const calculatedMetrics = React.useMemo(() => {
+    if (!payload || !isValidPeriod) {
+      return {
+        expectedCount: 0,
+        actualCount: 0,
+        missingCount: 0,
+        completionRate: 0,
+      };
+    }
+
+    const elapsedMonth = getElapsedMonthRange({ year, month, today: now });
+    const updateDates = payload.calendar
+      .filter((day) => day.has_update)
+      .map((day) => day.date);
+
+    return getUpdateMetricsForRange({
+      updates: updateDates,
+      range: elapsedMonth.range,
+      today: now,
+    });
+  }, [isValidPeriod, month, now, payload, year]);
+
+  const completion = clamp(calculatedMetrics.completionRate, 0, 100);
+  const workingDays = calculatedMetrics.expectedCount;
+  const updateDays = calculatedMetrics.actualCount;
+  const missingDays = calculatedMetrics.missingCount;
   const weekFilterOptions = React.useMemo(
     () => getWeekFilterOptions(payload?.calendar.length ?? 0),
     [payload?.calendar.length],
@@ -357,10 +393,10 @@ export function MemberMonthlyCalendar() {
             <Card>
               <CardHeader>
                 <CardDescription>Completion</CardDescription>
-                <CardTitle className="text-3xl tabular-nums">{formatPercent(payload.percentage)}</CardTitle>
+                <CardTitle className="text-3xl tabular-nums">{formatPercent(completion)}</CardTitle>
                 <CardAction>
                   <Badge variant={getCompletionVariant(completion)}>
-                    {payload.update_days}/{payload.working_days}
+                    {updateDays}/{workingDays}
                   </Badge>
                 </CardAction>
               </CardHeader>
@@ -407,12 +443,13 @@ export function MemberMonthlyCalendar() {
                 <Badge variant="outline">Sunday</Badge>
                 <Badge variant="success">Has update</Badge>
                 <Badge variant="secondary">Missing update</Badge>
+                <Badge variant="outline" className="text-muted-foreground">Future</Badge>
                 <Badge variant="outline">{activeWeekLabel}</Badge>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {filteredCalendar.map((day) => {
-                  const statusView = getDayStatusView(day);
+                  const statusView = getDayStatusView(day, now);
                   const isSelected = selectedDay?.date === day.date;
 
                   return (
@@ -474,7 +511,7 @@ export function MemberMonthlyCalendar() {
                         </DialogDescription>
                       </div>
                       {(() => {
-                        const statusView = getDayStatusView(selectedDay);
+                        const statusView = getDayStatusView(selectedDay, now);
                         return (
                           <Badge variant={statusView.badgeVariant} className={statusView.badgeClassName}>
                             {statusView.label}
@@ -496,6 +533,8 @@ export function MemberMonthlyCalendar() {
                         <p className="text-sm text-muted-foreground">
                           {selectedDay.is_sunday
                             ? "Sunday is treated as a neutral day."
+                            : isFutureDate(selectedDay.date, now)
+                              ? "Future workday."
                             : "No update was submitted for this workday."}
                         </p>
                       )}
@@ -513,6 +552,8 @@ export function MemberMonthlyCalendar() {
                         <p>
                           {selectedDay.is_sunday
                             ? "No submission required for Sunday."
+                            : isFutureDate(selectedDay.date, now)
+                              ? "No submission required yet for this future workday."
                             : "Missing workday update."}
                         </p>
                       )}

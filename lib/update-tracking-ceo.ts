@@ -2,6 +2,12 @@ import type {
   AllUsersMonthlyUpdatesEmployee,
   AllUsersUpdateEntry,
 } from "@/services/updateTrackingServices";
+import {
+  getDaysInMonth,
+  getElapsedMonthRange,
+  getUpdateMetricsForRange,
+  normalizeDateOnly,
+} from "@/lib/update-tracking-period";
 
 export const MONTH_OPTIONS = [
   { value: "1", label: "January" },
@@ -19,7 +25,6 @@ export const MONTH_OPTIONS = [
 ] as const;
 
 const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-const FULL_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})/;
 
 export type EmployeeDayStatus = "updated" | "missing" | "sunday" | "future";
 export type EmployeeStatusLabel = "on_track" | "needs_attention" | "at_risk";
@@ -74,16 +79,6 @@ function toIsoDate(year: number, month: number, day: number) {
   return `${year}-${pad2(month)}-${pad2(day)}`;
 }
 
-function normalizeDateOnly(value: string): string | null {
-  const normalized = value.trim();
-  const match = FULL_DATE_PATTERN.exec(normalized);
-  if (!match) {
-    return null;
-  }
-
-  return `${match[1]}-${match[2]}-${match[3]}`;
-}
-
 function getTimestampFromString(value: string | undefined | null) {
   if (!value) {
     return 0;
@@ -101,10 +96,6 @@ function getUpdateTimestamp(update: AllUsersUpdateEntry) {
 
   const normalizedDate = normalizeDateOnly(update.date);
   return normalizedDate ? getTimestampFromString(`${normalizedDate}T00:00:00Z`) : 0;
-}
-
-function getDaysInMonth(year: number, month: number) {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
 function getWeekdayIndex(year: number, month: number, day: number) {
@@ -275,6 +266,7 @@ export function buildEmployeeOverviews(params: {
 }) {
   const { employees, year, month, todayIso } = params;
   const totalDays = getDaysInMonth(year, month);
+  const elapsedMonth = getElapsedMonthRange({ year, month, today: todayIso });
 
   return employees.map<EmployeeMonthlyOverview>((employee) => {
     const scopedUpdates = employee.updates.filter((update) =>
@@ -282,9 +274,6 @@ export function buildEmployeeOverviews(params: {
     );
     const updatesByDate = pickLatestUpdateByDate(scopedUpdates);
     const calendarDays: EmployeeCalendarDay[] = [];
-
-    let totalWorkdays = 0;
-    let submittedUpdatesCount = 0;
 
     for (let day = 1; day <= totalDays; day += 1) {
       const date = toIsoDate(year, month, day);
@@ -301,13 +290,6 @@ export function buildEmployeeOverviews(params: {
             ? "future"
             : "missing";
 
-      if (!isSunday) {
-        totalWorkdays += 1;
-        if (hasUpdate) {
-          submittedUpdatesCount += 1;
-        }
-      }
-
       calendarDays.push({
         day,
         date,
@@ -321,9 +303,15 @@ export function buildEmployeeOverviews(params: {
       });
     }
 
-    const missingWorkdaysCount = Math.max(totalWorkdays - submittedUpdatesCount, 0);
-    const completionRate =
-      totalWorkdays > 0 ? (submittedUpdatesCount / totalWorkdays) * 100 : 100;
+    const metrics = getUpdateMetricsForRange({
+      updates: scopedUpdates,
+      range: elapsedMonth.range,
+      today: todayIso,
+    });
+    const totalWorkdays = metrics.expectedCount;
+    const submittedUpdatesCount = metrics.actualCount;
+    const missingWorkdaysCount = metrics.missingCount;
+    const completionRate = metrics.completionRate;
     const lastUpdate = pickLastUpdate(scopedUpdates);
     const lastUpdateDate = lastUpdate ? normalizeDateOnly(lastUpdate.date) : null;
     const lastUpdateTimestamp = lastUpdate ? getUpdateTimestamp(lastUpdate) : 0;

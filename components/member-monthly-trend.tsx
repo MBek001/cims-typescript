@@ -4,6 +4,7 @@ import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TrendingUp } from "lucide-react";
 import {
+  fetchMyDailyCalendar,
   fetchMyTrends,
   type MyTrendItem,
 } from "@/services/updateTrackingServices";
@@ -18,6 +19,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import {
+  getElapsedMonthRange,
+  getUpdateMetricsForRange,
+} from "@/lib/update-tracking-period";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -50,14 +55,65 @@ function findBestTrend(trends: MyTrendItem[]): MyTrendItem | null {
 }
 
 export function MemberMonthlyTrend() {
+  const now = React.useMemo(() => new Date(), []);
+  const currentYear = now.getUTCFullYear();
+  const currentMonth = now.getUTCMonth() + 1;
+
   const trendsQuery = useQuery({
     queryKey: ["member-dashboard", "my-trends"],
     queryFn: fetchMyTrends,
   });
 
+  const currentMonthCalendarQuery = useQuery({
+    queryKey: ["member-dashboard", "my-daily-calendar", currentYear, currentMonth],
+    queryFn: () => fetchMyDailyCalendar({ year: currentYear, month: currentMonth }),
+  });
+
   const trendPayload = trendsQuery.data;
-  const trends = React.useMemo(() => trendPayload?.trends ?? [], [trendPayload?.trends]);
-  const trendAverageCompletion = clamp(trendPayload?.average_percentage ?? 0, 0, 100);
+  const trends = React.useMemo(() => {
+    const baseTrends = trendPayload?.trends ?? [];
+    const currentMonthCalendar = currentMonthCalendarQuery.data;
+
+    if (!currentMonthCalendar) {
+      return baseTrends;
+    }
+
+    const currentMonthRange = getElapsedMonthRange({
+      year: currentYear,
+      month: currentMonth,
+      today: now,
+    });
+    const updateDates = currentMonthCalendar.calendar
+      .filter((day) => day.has_update)
+      .map((day) => day.date);
+    const currentMetrics = getUpdateMetricsForRange({
+      updates: updateDates,
+      range: currentMonthRange.range,
+      today: now,
+    });
+
+    return baseTrends.map((trend) =>
+      trend.year === currentYear && trend.month === currentMonth
+        ? {
+            ...trend,
+            working_days: currentMetrics.expectedCount,
+            update_days: currentMetrics.actualCount,
+            percentage: currentMetrics.completionRate,
+          }
+        : trend,
+    );
+  }, [currentMonth, currentMonthCalendarQuery.data, currentYear, now, trendPayload?.trends]);
+  const trendAverageCompletion = React.useMemo(() => {
+    if (trends.length === 0) {
+      return 0;
+    }
+
+    return clamp(
+      trends.reduce((sum, trend) => sum + trend.percentage, 0) / trends.length,
+      0,
+      100,
+    );
+  }, [trends]);
   const bestTrend = React.useMemo(() => findBestTrend(trends), [trends]);
   const totalTrendWorkingDays = trends.reduce((sum, trend) => sum + trend.working_days, 0);
   const totalTrendUpdateDays = trends.reduce((sum, trend) => sum + trend.update_days, 0);
@@ -163,4 +219,3 @@ export function MemberMonthlyTrend() {
     </div>
   );
 }
-

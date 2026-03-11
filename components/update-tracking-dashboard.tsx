@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchCompanyUpdateStats,
+  fetchMyDailyCalendar,
   fetchMyUpdateStats,
   fetchRecentUpdates,
 } from "@/services/updateTrackingServices";
@@ -23,6 +24,12 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  getElapsedMonthRange,
+  getElapsedWeekRange,
+  getShiftedMonth,
+  getUpdateMetricsForRange,
+} from "@/lib/update-tracking-period";
 
 function formatCellValue(value: string | number | boolean | null | undefined) {
   if (value === null || value === undefined || value === "") {
@@ -37,6 +44,11 @@ function formatCellValue(value: string | number | boolean | null | undefined) {
 }
 
 export function UpdateTrackingDashboard() {
+  const now = new Date();
+  const currentYear = now.getUTCFullYear();
+  const currentMonth = now.getUTCMonth() + 1;
+  const previousMonthPeriod = getShiftedMonth(currentYear, currentMonth, -1);
+
   const companyStatsQuery = useQuery({
     queryKey: ["update-tracking", "company-stats"],
     queryFn: fetchCompanyUpdateStats,
@@ -45,6 +57,25 @@ export function UpdateTrackingDashboard() {
   const myStatsQuery = useQuery({
     queryKey: ["update-tracking", "my-stats"],
     queryFn: fetchMyUpdateStats,
+  });
+
+  const currentMonthCalendarQuery = useQuery({
+    queryKey: ["update-tracking", "my-daily-calendar", currentYear, currentMonth],
+    queryFn: () => fetchMyDailyCalendar({ year: currentYear, month: currentMonth }),
+  });
+
+  const previousMonthCalendarQuery = useQuery({
+    queryKey: [
+      "update-tracking",
+      "my-daily-calendar",
+      previousMonthPeriod.year,
+      previousMonthPeriod.month,
+    ],
+    queryFn: () =>
+      fetchMyDailyCalendar({
+        year: previousMonthPeriod.year,
+        month: previousMonthPeriod.month,
+      }),
   });
 
   const recentUpdatesQuery = useQuery({
@@ -88,6 +119,45 @@ export function UpdateTrackingDashboard() {
 
   const companyStats = companyStatsQuery.data;
   const myStats = myStatsQuery.data;
+  const updateDates = [
+    ...(currentMonthCalendarQuery.data?.calendar ?? [])
+      .filter((day) => day.has_update)
+      .map((day) => day.date),
+    ...(previousMonthCalendarQuery.data?.calendar ?? [])
+      .filter((day) => day.has_update)
+      .map((day) => day.date),
+  ];
+  const canUseElapsedMetrics = Boolean(
+    currentMonthCalendarQuery.data && previousMonthCalendarQuery.data,
+  );
+  const currentWeekRange = getElapsedWeekRange({ today: now });
+  const currentMonthRange = getElapsedMonthRange({
+    year: currentYear,
+    month: currentMonth,
+    today: now,
+  });
+  const currentWeekMetrics = getUpdateMetricsForRange({
+    updates: updateDates,
+    range: currentWeekRange.range,
+    today: now,
+  });
+  const currentMonthMetrics = getUpdateMetricsForRange({
+    updates: updateDates,
+    range: currentMonthRange.range,
+    today: now,
+  });
+  const weeklyCompletion = canUseElapsedMetrics
+    ? currentWeekMetrics.completionRate
+    : myStats?.percentage_this_week ?? 0;
+  const weeklyUpdates = canUseElapsedMetrics
+    ? currentWeekMetrics.actualCount
+    : myStats?.updates_this_week ?? 0;
+  const monthlyUpdates = canUseElapsedMetrics
+    ? currentMonthMetrics.actualCount
+    : myStats?.updates_this_month ?? 0;
+  const expectedWeekToDate = canUseElapsedMetrics
+    ? currentWeekMetrics.expectedCount
+    : myStats?.expected_updates_per_week ?? 0;
 
   return (
     <div className="space-y-6 px-4 py-6">
@@ -113,7 +183,7 @@ export function UpdateTrackingDashboard() {
         <Card>
           <CardHeader>
             <CardDescription>My Weekly Completion</CardDescription>
-            <CardTitle>{myStats?.percentage_this_week ?? 0}%</CardTitle>
+            <CardTitle>{weeklyCompletion.toFixed(1)}%</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -170,15 +240,15 @@ export function UpdateTrackingDashboard() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">This week</span>
-              <span className="font-medium">{myStats?.updates_this_week ?? 0}</span>
+              <span className="font-medium">{weeklyUpdates}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">This month</span>
-              <span className="font-medium">{myStats?.updates_this_month ?? 0}</span>
+              <span className="font-medium">{monthlyUpdates}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Expected / week</span>
-              <span className="font-medium">{myStats?.expected_updates_per_week ?? 0}</span>
+              <span className="text-sm text-muted-foreground">Expected / week (to date)</span>
+              <span className="font-medium">{expectedWeekToDate}</span>
             </div>
           </CardContent>
         </Card>

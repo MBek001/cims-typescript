@@ -218,27 +218,19 @@ export async function addMemberPenalty(
     throw new Error("penalty_points must be a finite number");
   }
 
-  const payload: {
-    user_id: number;
-    year: number;
-    month: number;
-    penalty_points: number;
-    reason?: string;
-  } = {
-    user_id: params.userId,
-    year: params.year,
-    month: params.month,
-    penalty_points: params.penaltyPoints,
-  };
+  const query = new URLSearchParams();
+  query.set("user_id", String(params.userId));
+  query.set("year", String(params.year));
+  query.set("month", String(params.month));
+  query.set("penalty_points", String(params.penaltyPoints));
 
   const reason = params.reason?.trim();
   if (reason) {
-    payload.reason = reason;
+    query.set("reason", reason);
   }
 
   const { data } = await api.post<AddMemberPenaltyResponse>(
-    "/members/member/penalties/add",
-    payload,
+    `/members/member/penalties/add?${query.toString()}`,
   );
 
   return data;

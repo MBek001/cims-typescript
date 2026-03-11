@@ -38,6 +38,8 @@ export interface MyDailyCalendarItem {
   has_update: boolean;
   update_content: string | null;
   is_valid: boolean | null;
+  created_at?: string | null;
+  update_created_at?: string | null;
 }
 
 export interface MyDailyCalendarResponse {
@@ -93,6 +95,22 @@ export interface MyProfileResponse {
   statistics: MyProfileStatistics;
   recent_updates: MyProfileRecentUpdate[];
 }
+
+export interface AllUsersUpdateEntry {
+  id: number;
+  date: string;
+  content: string;
+  is_valid: boolean | null;
+  created_at: string;
+}
+
+export interface AllUsersMonthlyUpdatesEmployee {
+  user_id: number;
+  name: string;
+  updates: AllUsersUpdateEntry[];
+}
+
+export type AllUsersMonthlyUpdatesResponse = AllUsersMonthlyUpdatesEmployee[];
 
 function normalizeUpdateList(data: unknown): GenericUpdateItem[] {
   if (Array.isArray(data)) {
@@ -176,5 +194,23 @@ export async function fetchMyTrends(): Promise<MyTrendsResponse> {
 
 export async function fetchMyProfile(): Promise<MyProfileResponse> {
   const { data } = await api.get<MyProfileResponse>("/update-tracking/my-profile");
+  return data;
+}
+
+export async function fetchAllUsersMonthlyUpdates(params: {
+  year: number;
+  month: number;
+}): Promise<AllUsersMonthlyUpdatesResponse> {
+  assertInteger(params.year, "year");
+  assertInteger(params.month, "month");
+
+  const query = new URLSearchParams();
+  query.set("year", String(params.year));
+  query.set("month", String(params.month));
+
+  const { data } = await api.get<AllUsersMonthlyUpdatesResponse>(
+    `/update-tracking/all-users-updates?${query.toString()}`,
+  );
+
   return data;
 }

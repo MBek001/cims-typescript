@@ -3,7 +3,10 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, CheckCircle2, CircleAlert, RefreshCcw } from "lucide-react";
-import { fetchMyDailyCalendar } from "@/services/updateTrackingServices";
+import {
+  fetchMyDailyCalendar,
+  type MyDailyCalendarItem,
+} from "@/services/updateTrackingServices";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +26,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 const MONTH_OPTIONS = [
@@ -89,11 +101,100 @@ function isInSelectedWeek(day: number, selectedWeek: WeekFilterValue): boolean {
   return day >= startDay && day <= endDay;
 }
 
+function formatLongDate(value: string) {
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleDateString("en-GB", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+}
+
+function formatDateTime(value?: string | null) {
+  const parsed = value ? new Date(value) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toLocaleString("en-GB", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getDayStatusView(day: MyDailyCalendarItem) {
+  if (day.is_sunday) {
+    return {
+      label: "Sunday",
+      badgeVariant: "outline" as const,
+      badgeClassName: "",
+      cardClassName: "border-border/60 bg-muted/20",
+    };
+  }
+
+  if (day.has_update) {
+    return {
+      label: "Updated",
+      badgeVariant: "success" as const,
+      badgeClassName: "",
+      cardClassName: "border-emerald-500/30 bg-emerald-500/10",
+    };
+  }
+
+  return {
+    label: "Missing",
+    badgeVariant: "secondary" as const,
+    badgeClassName: "bg-amber-500/15 text-amber-200 border border-amber-500/30",
+    cardClassName: "border-orange-500/30 bg-orange-500/10",
+  };
+}
+
+function formatUpdateContent(content: string) {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+
+  return (
+    <div className="space-y-2">
+      {lines.map((line, index) => {
+        const trimmed = line.trim();
+
+        if (!trimmed) {
+          return <div key={`empty-line-${index}`} className="h-2" />;
+        }
+
+        if (trimmed.startsWith("-")) {
+          const bulletText = trimmed.replace(/^-+\s*/, "");
+
+          return (
+            <div key={`bullet-line-${index}`} className="flex items-start gap-2">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground" />
+              <p className="text-sm leading-relaxed">{bulletText || "-"}</p>
+            </div>
+          );
+        }
+
+        return (
+          <p key={`text-line-${index}`} className="text-sm leading-relaxed whitespace-pre-wrap">
+            {line}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export function MemberMonthlyCalendar() {
   const now = React.useMemo(() => new Date(), []);
   const [yearInput, setYearInput] = React.useState(String(now.getUTCFullYear()));
   const [monthInput, setMonthInput] = React.useState(String(now.getUTCMonth() + 1));
   const [weekFilter, setWeekFilter] = React.useState<WeekFilterValue>("all");
+  const [selectedDay, setSelectedDay] = React.useState<MyDailyCalendarItem | null>(null);
+  const [detailsModalOpen, setDetailsModalOpen] = React.useState(false);
 
   const year = Number.parseInt(yearInput, 10);
   const month = Number.parseInt(monthInput, 10);
@@ -130,6 +231,18 @@ export function MemberMonthlyCalendar() {
   const activeWeekLabel =
     weekFilterOptions.find((option) => option.value === weekFilter)?.label ??
     "All full week";
+
+  React.useEffect(() => {
+    if (!selectedDay) {
+      return;
+    }
+
+    const stillExists = (payload?.calendar ?? []).some((day) => day.date === selectedDay.date);
+    if (!stillExists) {
+      setSelectedDay(null);
+      setDetailsModalOpen(false);
+    }
+  }, [payload?.calendar, selectedDay]);
 
   return (
     <div className="space-y-6 px-4 py-6">
@@ -271,7 +384,7 @@ export function MemberMonthlyCalendar() {
                       setWeekFilter(value as WeekFilterValue);
                     }}
                   >
-                    <SelectTrigger id="member-calendar-week" className="w-[180px] cursor-pointer">
+                    <SelectTrigger id="member-calendar-week" className="w-45 cursor-pointer">
                       <SelectValue placeholder="Select week" />
                     </SelectTrigger>
                     <SelectContent>
@@ -299,29 +412,30 @@ export function MemberMonthlyCalendar() {
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {filteredCalendar.map((day) => {
-                  const dayStatusClass = day.is_sunday
-                    ? "border-border/60 bg-muted/20"
-                    : day.has_update
-                      ? "border-emerald-500/30 bg-emerald-500/10"
-                      : "border-orange-500/30 bg-orange-500/10";
+                  const statusView = getDayStatusView(day);
+                  const isSelected = selectedDay?.date === day.date;
 
                   return (
-                    <div key={day.date} className={cn("rounded-lg border p-3", dayStatusClass)}>
+                    <button
+                      key={day.date}
+                      type="button"
+                      onClick={() => {
+                        setSelectedDay(day);
+                        setDetailsModalOpen(true);
+                      }}
+                      className={cn(
+                        "rounded-lg border p-3 text-left transition-colors cursor-pointer hover:bg-muted/15",
+                        statusView.cardClassName,
+                        isSelected && "ring-2 ring-primary/50",
+                      )}
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <p className="text-sm font-semibold">{day.day}</p>
                           <p className="text-xs text-muted-foreground">{day.weekday}</p>
                         </div>
-                        <Badge
-                          variant={
-                            day.is_sunday
-                              ? "outline"
-                              : day.has_update
-                                ? "success"
-                                : "secondary"
-                          }
-                        >
-                          {day.is_sunday ? "Sunday" : day.has_update ? "Updated" : "Missing"}
+                        <Badge variant={statusView.badgeVariant} className={statusView.badgeClassName}>
+                          {statusView.label}
                         </Badge>
                       </div>
                       <p className="mt-2 text-xs text-muted-foreground">{day.date}</p>
@@ -330,7 +444,7 @@ export function MemberMonthlyCalendar() {
                           {day.update_content?.trim() || "Update submitted"}
                         </p>
                       ) : null}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -341,6 +455,83 @@ export function MemberMonthlyCalendar() {
               ) : null}
             </CardContent>
           </Card>
+
+          <Dialog
+            open={detailsModalOpen}
+            onOpenChange={(open) => {
+              setDetailsModalOpen(open);
+            }}
+          >
+            <DialogContent className="max-h-[90vh] max-w-[calc(100%-1.5rem)] p-0 sm:max-w-2xl">
+              {selectedDay ? (
+                <>
+                  <DialogHeader className="border-b px-6 py-4">
+                    <div className="flex items-start justify-between gap-3 pr-8">
+                      <div>
+                        <DialogTitle className="text-xl">{`${selectedDay.day} • ${selectedDay.weekday}`}</DialogTitle>
+                        <DialogDescription className="mt-1">
+                          {formatLongDate(selectedDay.date)}
+                        </DialogDescription>
+                      </div>
+                      {(() => {
+                        const statusView = getDayStatusView(selectedDay);
+                        return (
+                          <Badge variant={statusView.badgeVariant} className={statusView.badgeClassName}>
+                            {statusView.label}
+                          </Badge>
+                        );
+                      })()}
+                    </div>
+                  </DialogHeader>
+
+                  <div className="max-h-[56vh] space-y-4 overflow-y-auto px-6 py-4">
+                    <div className="rounded-lg border border-border/70 bg-background/70 p-4">
+                      {selectedDay.has_update ? (
+                        selectedDay.update_content?.trim() ? (
+                          formatUpdateContent(selectedDay.update_content.trim())
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Update submitted.</p>
+                        )
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          {selectedDay.is_sunday
+                            ? "Sunday is treated as a neutral day."
+                            : "No update was submitted for this workday."}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="border-t pt-3 text-xs text-muted-foreground">
+                      {selectedDay.has_update ? (
+                        <p>
+                          Submitted:{" "}
+                          {formatDateTime(
+                            selectedDay.update_created_at ?? selectedDay.created_at,
+                          ) ?? "Not available"}
+                        </p>
+                      ) : (
+                        <p>
+                          {selectedDay.is_sunday
+                            ? "No submission required for Sunday."
+                            : "Missing workday update."}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <DialogFooter className="border-t px-6 py-4">
+                    <DialogClose asChild>
+                      <Button variant="outline">Close</Button>
+                    </DialogClose>
+                  </DialogFooter>
+                </>
+              ) : (
+                <div className="px-6 py-8 text-sm text-muted-foreground">
+                  No day selected.
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>

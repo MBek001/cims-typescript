@@ -34,6 +34,7 @@ const navMain: NavItem[] = [
   { title: "Sales", url: "/sales", icon: IconChartBar, permission: "crm" },
   { title: "Payment", url: "/payment", icon: IconCreditCard, permission: "payment_list" },
   { title: "Updates", url: "/update-list", icon: IconCircleCheck, permission: "update_list" },
+  { title: "Team Updates", url: "/update-tracking/ceo", icon: IconDashboard, permission: "ceo" },
   { title: "Faults", url: "/faults", icon: IconAlertTriangle, permission: "ceo" },
 ]
 
@@ -42,9 +43,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const loading = useAuthStore((s) => s.loading);
   const fetchUser = useAuthStore((s) => s.fetchUser);
   const router = useRouter();
-  const [checkedAuth, setCheckedAuth] = React.useState(
-    () => !isAuthenticated() || Boolean(useAuthStore.getState().user),
-  );
+  const [checkedAuth, setCheckedAuth] = React.useState(false);
 
   const sidebarItems = React.useMemo(() => {
     const isMemberUser =

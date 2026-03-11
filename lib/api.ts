@@ -26,7 +26,7 @@ const refreshClient = axios.create({
 const isAuthRoute = (url?: string) =>
   Boolean(
     url &&
-      ["/auth/login", "/auth/register", "/auth/verify-email", "/auth/refresh"]
+      ["/auth/login", "/auth/verify-email", "/auth/refresh"]
         .some((route) => url.includes(route)),
   );
 

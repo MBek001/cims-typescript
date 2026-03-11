@@ -55,7 +55,7 @@ export function LoginForm({
     } catch (err: unknown) {
       if (isUnauthorizedError(err)) {
         useAuthStore.getState().logout();
-        router.push("/register");
+        setError("Email or password is incorrect.");
         return;
       }
       setError(getApiErrorMessage(err, "Login failed. Please try again."));
@@ -120,11 +120,8 @@ export function LoginForm({
               </div>
             </div>
 
-            <div className="mt-4 text-center text-sm">
-              Don&apos;t have an account?{" "}
-              <Link href="/register" className="underline underline-offset-4">
-                Sign up
-              </Link>
+            <div className="mt-4 text-center text-sm text-muted-foreground">
+              Accounts are created by the backend administrator.
             </div>
           </form>
         </CardContent>

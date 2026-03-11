@@ -29,16 +29,6 @@ export interface LoginPayload {
   password: string;
 }
 
-export interface RegisterPayload {
-  email: string;
-  password: string;
-  name: string;
-  surname: string;
-  company_code: string;
-  telegram_id?: string;
-  role: string;
-}
-
 export interface EmailVerificationPayload {
   email: string;
   code: string;

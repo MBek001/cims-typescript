@@ -5,20 +5,12 @@ import type {
   AuthResponse,
   EmailVerificationPayload,
   LoginPayload,
-  RegisterPayload,
   User,
 } from "@/types/auth";
 
 export interface SuccessResponse {
   success: boolean;
   message: string;
-}
-
-export async function registerUser(
-  payload: RegisterPayload,
-): Promise<SuccessResponse> {
-  const { data } = await api.post<SuccessResponse>("/auth/register", payload);
-  return data;
 }
 
 export async function loginUser({

@@ -41,7 +41,6 @@ export default function Page() {
 
         if (isUnauthorizedError(error)) {
           authState.logout();
-          router.push("/register");
         }
       }
     };

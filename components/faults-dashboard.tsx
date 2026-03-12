@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, RefreshCcw, ShieldAlert, Users } from "lucide-react";
 import {
   addMemberPenalty,
-  fetchMemberUpdatesAll,
+  fetchMemberSalaryEstimates,
   type SalaryEstimateDetail,
 } from "@/services/memberServices";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +77,9 @@ const EMPTY_SALARY_ESTIMATE: SalaryEstimateDetail = {
   total_penalty_points: 0,
   penalty_percentage: 0,
   deduction_amount: 0,
+  salary_after_penalty: 0,
+  total_bonus_amount: 0,
+  final_salary: 0,
   estimated_salary: 0,
 };
 
@@ -108,7 +111,7 @@ export function FaultsDashboard() {
   const faultsQuery = useQuery({
     queryKey: ["ceo", "faults-dashboard", year, month],
     queryFn: () =>
-      fetchMemberUpdatesAll({
+      fetchMemberSalaryEstimates({
         year,
         month,
         employeeIds: [],
@@ -118,51 +121,66 @@ export function FaultsDashboard() {
 
   const payload = faultsQuery.data;
   const employees = React.useMemo(() => {
-    if (!payload) {
+    if (!payload?.employees) {
       return [];
     }
 
-    return payload.employees.map((employee) => {
-      const selectedPeriod =
-        employee.periods.find((period) => period.year === year && period.month === month) ??
-        employee.periods[0];
-
-      const salaryEstimate = selectedPeriod?.salary_estimate
-        ? selectedPeriod.salary_estimate
-        : {
-            ...EMPTY_SALARY_ESTIMATE,
-            base_salary: employee.default_salary ?? 0,
-            estimated_salary: employee.default_salary ?? 0,
-          };
-
-      return {
-        user_id: employee.user_id,
-        full_name: employee.full_name,
-        penalties_count: selectedPeriod?.reports_count ?? employee.summary.total_reports ?? 0,
-        salary_estimate: salaryEstimate,
-      };
-    });
-  }, [payload, year, month]);
+    return payload.employees.map((employee) => ({
+      ...employee,
+      penalties_count: employee.penalties_count ?? 0,
+      bonuses_count: employee.bonuses_count ?? 0,
+      salary_estimate: {
+        ...EMPTY_SALARY_ESTIMATE,
+        ...employee.salary_estimate,
+      },
+    }));
+  }, [payload]);
 
   const summary = React.useMemo(() => {
-    const totalEstimatedSalary = employees.reduce(
-      (sum, employee) => sum + employee.salary_estimate.estimated_salary,
-      0,
-    );
-    const totalDeductionAmount = employees.reduce(
-      (sum, employee) => sum + employee.salary_estimate.deduction_amount,
-      0,
+    const calculatedTotals = employees.reduce(
+      (acc, employee) => {
+        acc.total_base_salary += employee.salary_estimate.base_salary;
+        acc.total_deduction_amount += employee.salary_estimate.deduction_amount;
+        acc.total_bonus_amount += employee.salary_estimate.total_bonus_amount;
+        acc.total_final_salary += employee.salary_estimate.final_salary;
+        acc.total_estimated_salary += employee.salary_estimate.estimated_salary;
+        return acc;
+      },
+      {
+        total_base_salary: 0,
+        total_deduction_amount: 0,
+        total_bonus_amount: 0,
+        total_final_salary: 0,
+        total_estimated_salary: 0,
+      },
     );
 
     return {
       employees_count: payload?.summary.employees_count ?? employees.length,
-      total_estimated_salary: totalEstimatedSalary,
-      total_deduction_amount: totalDeductionAmount,
+      total_base_salary:
+        payload?.summary.total_base_salary ?? calculatedTotals.total_base_salary,
+      total_deduction_amount:
+        payload?.summary.total_deduction_amount ??
+        calculatedTotals.total_deduction_amount,
+      total_bonus_amount:
+        payload?.summary.total_bonus_amount ?? calculatedTotals.total_bonus_amount,
+      total_final_salary:
+        payload?.summary.total_final_salary ?? calculatedTotals.total_final_salary,
+      total_estimated_salary:
+        payload?.summary.total_estimated_salary ??
+        calculatedTotals.total_estimated_salary,
     };
   }, [payload, employees]);
 
   const riskyEmployees = employees.filter(
-    (employee) => employee.salary_estimate.penalty_percentage > 0,
+    (employee) =>
+      employee.penalties_count > 0 ||
+      employee.salary_estimate.penalty_percentage > 0,
+  );
+
+  const rewardedEmployees = employees.filter(
+    (employee) =>
+      employee.bonuses_count > 0 || employee.salary_estimate.total_bonus_amount > 0,
   );
 
   const addPenaltyMutation = useMutation({
@@ -216,8 +234,8 @@ export function FaultsDashboard() {
     <div className="space-y-6 px-4 py-6">
       <Card className="overflow-hidden border-orange-500/20 bg-linear-to-br from-orange-500/10 via-card to-card">
         <CardHeader>
-          <CardDescription>CEO Faults Overview</CardDescription>
-          <CardTitle className="text-2xl">Salary Deductions and Penalties</CardTitle>
+          <CardDescription>CEO Salary Estimates</CardDescription>
+          <CardTitle className="text-2xl">Salary Estimates, Penalties and Bonuses</CardTitle>
           <CardAction className="flex items-center gap-2">
             <Badge variant="outline">
               {isValidPeriod ? `${month}/${year}` : "Invalid period"}
@@ -226,6 +244,11 @@ export function FaultsDashboard() {
               {riskyEmployees.length > 0
                 ? `${riskyEmployees.length} with penalties`
                 : "No active penalties"}
+            </Badge>
+            <Badge variant={rewardedEmployees.length > 0 ? "success" : "outline"}>
+              {rewardedEmployees.length > 0
+                ? `${rewardedEmployees.length} with bonuses`
+                : "No bonuses"}
             </Badge>
           </CardAction>
         </CardHeader>
@@ -286,7 +309,7 @@ export function FaultsDashboard() {
         <Card className="border-destructive/40 bg-destructive/5">
           <CardContent className="space-y-3 py-4">
             <p className="text-sm text-destructive">
-              Failed to load `/members/member/updates/all`.
+              Failed to load `/members/member/salary-estimates`.
             </p>
             <Button variant="outline" size="sm" onClick={() => void faultsQuery.refetch()}>
               Try again
@@ -295,7 +318,7 @@ export function FaultsDashboard() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <Card className="bg-linear-to-br from-card to-muted/30">
               <CardHeader>
                 <CardDescription>Employees in report</CardDescription>
@@ -309,16 +332,16 @@ export function FaultsDashboard() {
             </Card>
             <Card>
               <CardHeader>
-                <CardDescription>Total estimated salary</CardDescription>
+                <CardDescription>Total base salary</CardDescription>
                 <CardTitle className="text-3xl tabular-nums">
-                  {formatAmount(summary?.total_estimated_salary ?? 0)}
+                  {formatAmount(summary?.total_base_salary ?? 0)}
                 </CardTitle>
               </CardHeader>
             </Card>
-            <Card>
+            <Card className="border-destructive/30 bg-destructive/5">
               <CardHeader>
-                <CardDescription>Total deduction amount</CardDescription>
-                <CardTitle className="text-3xl tabular-nums">
+                <CardDescription className="text-destructive/80">Total deduction amount</CardDescription>
+                <CardTitle className="text-3xl tabular-nums text-destructive">
                   {formatAmount(summary?.total_deduction_amount ?? 0)}
                 </CardTitle>
                 <CardAction>
@@ -336,6 +359,19 @@ export function FaultsDashboard() {
                 </CardAction>
               </CardHeader>
             </Card>
+            <Card className="border-emerald-500/30 bg-emerald-500/5">
+              <CardHeader>
+                <CardDescription className="text-emerald-600 dark:text-emerald-300">Total bonus amount</CardDescription>
+                <CardTitle className="text-3xl tabular-nums text-emerald-600 dark:text-emerald-300">
+                  {formatAmount(summary?.total_bonus_amount ?? 0)}
+                </CardTitle>
+                <CardAction>
+                  <Badge variant={(summary?.total_bonus_amount ?? 0) > 0 ? "success" : "outline"}>
+                    {(summary?.total_bonus_amount ?? 0) > 0 ? "Bonuses present" : "No bonuses"}
+                  </Badge>
+                </CardAction>
+              </CardHeader>
+            </Card>
             <Card>
               <CardHeader>
                 <CardDescription>Employees with penalties</CardDescription>
@@ -345,6 +381,22 @@ export function FaultsDashboard() {
                 <CardAction>
                   <ShieldAlert className="h-4 w-4 text-muted-foreground" />
                 </CardAction>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardDescription>Total final salary</CardDescription>
+                <CardTitle className="text-3xl tabular-nums">
+                  {formatAmount(summary?.total_final_salary ?? 0)}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardDescription>Total estimated salary</CardDescription>
+                <CardTitle className="text-3xl tabular-nums">
+                  {formatAmount(summary?.total_estimated_salary ?? 0)}
+                </CardTitle>
               </CardHeader>
             </Card>
           </div>
@@ -357,6 +409,7 @@ export function FaultsDashboard() {
                 100,
               );
               const hasDeduction = employee.salary_estimate.deduction_amount > 0;
+              const hasBonus = employee.salary_estimate.total_bonus_amount > 0;
 
               return (
                 <Card key={employee.user_id} className="overflow-hidden">
@@ -367,6 +420,9 @@ export function FaultsDashboard() {
                       <div className="flex items-center gap-2">
                         <Badge variant={hasDeduction ? "destructive" : "outline"}>
                           {hasDeduction ? "Has deduction" : "Clean"}
+                        </Badge>
+                        <Badge variant={hasBonus ? "success" : "outline"}>
+                          {hasBonus ? "Has bonus" : "No bonus"}
                         </Badge>
                         <Button
                           size="sm"
@@ -385,16 +441,22 @@ export function FaultsDashboard() {
                     </CardAction>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-lg border border-border/60 bg-background/70 p-3">
+                        <p className="text-xs text-muted-foreground">Final salary</p>
+                        <p className="mt-1 text-xl font-semibold tabular-nums">
+                          {formatAmount(employee.salary_estimate.final_salary)}
+                        </p>
+                      </div>
                       <div className="rounded-lg border border-border/60 bg-background/70 p-3">
                         <p className="text-xs text-muted-foreground">Estimated salary</p>
                         <p className="mt-1 text-xl font-semibold tabular-nums">
                           {formatAmount(employee.salary_estimate.estimated_salary)}
                         </p>
                       </div>
-                      <div className="rounded-lg border border-border/60 bg-background/70 p-3">
-                        <p className="text-xs text-muted-foreground">Deduction</p>
-                        <p className="mt-1 text-xl font-semibold tabular-nums">
+                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                        <p className="text-xs text-destructive/80">Deduction</p>
+                        <p className="mt-1 text-xl font-semibold tabular-nums text-destructive">
                           {formatAmount(employee.salary_estimate.deduction_amount)}
                         </p>
                       </div>
@@ -407,20 +469,40 @@ export function FaultsDashboard() {
                         </p>
                       </div>
                       <div className="rounded-lg border border-border/60 bg-background/70 p-3">
-                        <p className="text-xs text-muted-foreground">Penalty points</p>
+                        <p className="text-xs text-muted-foreground">After penalty</p>
                         <p className="mt-1 text-base font-semibold tabular-nums">
+                          {formatAmount(employee.salary_estimate.salary_after_penalty)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                        <p className="text-xs text-emerald-600 dark:text-emerald-300">Bonus amount</p>
+                        <p className="mt-1 text-base font-semibold tabular-nums text-emerald-600 dark:text-emerald-300">
+                          {formatAmount(employee.salary_estimate.total_bonus_amount)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                        <p className="text-xs text-destructive/80">Penalty points</p>
+                        <p className="mt-1 text-base font-semibold tabular-nums text-destructive">
                           {formatAmount(employee.salary_estimate.total_penalty_points)}
                         </p>
                       </div>
-                      <div className="rounded-lg border border-border/60 bg-background/70 p-3">
-                        <p className="text-xs text-muted-foreground">Penalty entries</p>
-                        <p className="mt-1 text-base font-semibold tabular-nums">
+                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                        <p className="text-xs text-destructive/80">Penalty entries</p>
+                        <p className="mt-1 text-base font-semibold tabular-nums text-destructive">
                           {formatAmount(employee.penalties_count)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                        <p className="text-xs text-emerald-600 dark:text-emerald-300">Bonus entries</p>
+                        <p className="mt-1 text-base font-semibold tabular-nums text-emerald-600 dark:text-emerald-300">
+                          {formatAmount(employee.bonuses_count)}
                         </p>
                       </div>
                     </div>
                     <div>
-                      <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="mb-2 flex items-center justify-between text-xs text-destructive/80">
                         <span className="inline-flex items-center gap-1">
                           <AlertTriangle className="h-3.5 w-3.5" />
                           Penalty percentage
@@ -429,7 +511,7 @@ export function FaultsDashboard() {
                       </div>
                       <div className="h-2 rounded-full bg-muted">
                         <div
-                          className="h-2 rounded-full bg-primary transition-all"
+                          className="h-2 rounded-full bg-destructive transition-all"
                           style={{ width: `${penaltyPercentage}%` }}
                         />
                       </div>
@@ -450,10 +532,15 @@ export function FaultsDashboard() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>User</TableHead>
+                    <TableHead className="text-right">Penalties</TableHead>
+                    <TableHead className="text-right">Bonuses</TableHead>
                     <TableHead className="text-right">Base</TableHead>
                     <TableHead className="text-right">Penalty %</TableHead>
                     <TableHead className="text-right">Points</TableHead>
                     <TableHead className="text-right">Deduction</TableHead>
+                    <TableHead className="text-right">After penalty</TableHead>
+                    <TableHead className="text-right">Bonus amount</TableHead>
+                    <TableHead className="text-right">Final</TableHead>
                     <TableHead className="text-right">Estimated</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -466,17 +553,32 @@ export function FaultsDashboard() {
                           User #{employee.user_id}
                         </div>
                       </TableCell>
+                      <TableCell className="text-right tabular-nums text-destructive">
+                        {formatAmount(employee.penalties_count)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-emerald-600 dark:text-emerald-300">
+                        {formatAmount(employee.bonuses_count)}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {formatAmount(employee.salary_estimate.base_salary)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="text-right tabular-nums text-destructive">
                         {formatPercent(employee.salary_estimate.penalty_percentage)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="text-right tabular-nums text-destructive">
                         {formatAmount(employee.salary_estimate.total_penalty_points)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="text-right tabular-nums text-destructive">
                         {formatAmount(employee.salary_estimate.deduction_amount)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatAmount(employee.salary_estimate.salary_after_penalty)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-emerald-600 dark:text-emerald-300">
+                        {formatAmount(employee.salary_estimate.total_bonus_amount)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatAmount(employee.salary_estimate.final_salary)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {formatAmount(employee.salary_estimate.estimated_salary)}

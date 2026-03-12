@@ -10,6 +10,9 @@ export interface SalaryEstimateDetail {
   total_penalty_points: number;
   penalty_percentage: number;
   deduction_amount: number;
+  salary_after_penalty: number;
+  total_bonus_amount: number;
+  final_salary: number;
   estimated_salary: number;
 }
 
@@ -17,6 +20,37 @@ export interface SalaryEstimateEmployee {
   user_id: number;
   full_name: string;
   penalties_count: number;
+  bonuses_count: number;
+  salary_estimate: SalaryEstimateDetail;
+}
+
+export interface MemberSalaryPenaltyItem {
+  id: number;
+  penalty_points: number;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface MemberSalaryBonusItem {
+  id: number;
+  bonus_amount: number;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface MemberSalaryEstimateResponse {
+  user: {
+    id: number;
+    full_name: string;
+  };
+  period: {
+    year: number;
+    month: number;
+  };
+  penalties_count: number;
+  penalties: MemberSalaryPenaltyItem[];
+  bonuses_count: number;
+  bonuses: MemberSalaryBonusItem[];
   salary_estimate: SalaryEstimateDetail;
 }
 
@@ -24,6 +58,8 @@ export interface SalaryEstimateSummary {
   employees_count: number;
   total_base_salary: number;
   total_deduction_amount: number;
+  total_bonus_amount: number;
+  total_final_salary: number;
   total_estimated_salary: number;
 }
 
@@ -167,7 +203,7 @@ export async function fetchMemberSalaryEstimate(params: {
   userId: number;
   year: number;
   month: number;
-}): Promise<SalaryEstimateEmployee> {
+}): Promise<MemberSalaryEstimateResponse> {
   assertInteger(params.userId, "user_id");
   assertInteger(params.year, "year");
   assertInteger(params.month, "month");
@@ -177,7 +213,7 @@ export async function fetchMemberSalaryEstimate(params: {
   query.set("year", String(params.year));
   query.set("month", String(params.month));
 
-  const { data } = await api.get<SalaryEstimateEmployee>(
+  const { data } = await api.get<MemberSalaryEstimateResponse>(
     `/members/member/salary-estimate?${query.toString()}`,
   );
 

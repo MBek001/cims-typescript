@@ -301,7 +301,10 @@ export function MemberDashboard() {
 
   const mySalaryData = salaryQuery.data ?? null;
   const mySalaryEstimate = mySalaryData?.salary_estimate ?? null;
+  const salaryUserId = mySalaryData?.user.id ?? displayUserId;
   const penaltyProgress = clamp(mySalaryEstimate?.penalty_percentage ?? 0, 0, 100);
+  const penalties = mySalaryData?.penalties ?? [];
+  const bonuses = mySalaryData?.bonuses ?? [];
 
   return (
     <div className="space-y-6 px-4 py-6">
@@ -374,7 +377,7 @@ export function MemberDashboard() {
           <CardDescription>{`Salary estimate for ${salaryMonth}/${salaryYear}`}</CardDescription>
           <CardTitle>My Salary Snapshot</CardTitle>
           <CardAction>
-            <Badge variant="outline">Employee #{displayUserId}</Badge>
+            <Badge variant="outline">Employee #{salaryUserId}</Badge>
           </CardAction>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -401,14 +404,20 @@ export function MemberDashboard() {
             </div>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-[1.2fr_1fr_1fr]">
+              <div className="grid gap-4 md:grid-cols-[1.2fr_1fr_1fr_1fr]">
                 <div className="rounded-xl border border-emerald-500/25 bg-background/90 p-4">
                   <p className="text-xs text-muted-foreground">Estimated salary</p>
                   <p className="mt-1 text-3xl font-semibold tabular-nums">
                     {formatAmount(mySalaryEstimate.estimated_salary)}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {mySalaryData.full_name}
+                    {mySalaryData.user.full_name}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-emerald-500/25 bg-background/90 p-4">
+                  <p className="text-xs text-muted-foreground">Final salary</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums">
+                    {formatAmount(mySalaryEstimate.final_salary)}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-background/70 p-4">
@@ -417,9 +426,9 @@ export function MemberDashboard() {
                     {formatAmount(mySalaryEstimate.base_salary)}
                   </p>
                 </div>
-                <div className="rounded-xl border border-border/60 bg-background/70 p-4">
-                  <p className="text-xs text-muted-foreground">Deduction amount</p>
-                  <p className="mt-1 text-2xl font-semibold tabular-nums">
+                <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                  <p className="text-xs text-destructive/80">Deduction amount</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-destructive">
                     {formatAmount(mySalaryEstimate.deduction_amount)}
                   </p>
                   <Badge
@@ -435,32 +444,112 @@ export function MemberDashboard() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-lg border border-border/60 bg-background/70 p-3">
-                  <p className="text-xs text-muted-foreground">Penalty entries</p>
-                  <p className="mt-1 text-xl font-semibold tabular-nums">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                  <p className="text-xs text-destructive/80">Penalty entries</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums text-destructive">
                     {formatAmount(mySalaryData.penalties_count)}
                   </p>
                 </div>
-                <div className="rounded-lg border border-border/60 bg-background/70 p-3">
-                  <p className="text-xs text-muted-foreground">Penalty points</p>
-                  <p className="mt-1 text-xl font-semibold tabular-nums">
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                  <p className="text-xs text-emerald-600 dark:text-emerald-300">Bonus entries</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-300">
+                    {formatAmount(mySalaryData.bonuses_count)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                  <p className="text-xs text-destructive/80">Penalty points</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums text-destructive">
                     {formatAmount(mySalaryEstimate.total_penalty_points)}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border/60 bg-background/70 p-3">
-                  <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">After penalty</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums">
+                    {formatAmount(mySalaryEstimate.salary_after_penalty)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                  <p className="text-xs text-emerald-600 dark:text-emerald-300">Bonus amount</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-300">
+                    {formatAmount(mySalaryEstimate.total_bonus_amount)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                  <div className="mb-2 flex items-center justify-between text-xs text-destructive/80">
                     <span>Penalty percentage</span>
                     <span>{formatPercent(mySalaryEstimate.penalty_percentage)}</span>
                   </div>
                   <div className="h-2 rounded-full bg-muted">
                     <div
-                      className="h-2 rounded-full bg-primary transition-all"
+                      className="h-2 rounded-full bg-destructive transition-all"
                       style={{ width: `${penaltyProgress}%` }}
                     />
                   </div>
                 </div>
               </div>
+
+              {(penalties.length > 0 || bonuses.length > 0) && (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                    <p className="text-sm font-medium text-destructive">Penalty history</p>
+                    {penalties.length === 0 ? (
+                      <p className="mt-3 text-sm text-muted-foreground">No penalties this month.</p>
+                    ) : (
+                      <div className="mt-3 space-y-2">
+                        {penalties.map((item) => (
+                          <div
+                            key={`penalty-${item.id}`}
+                            className="rounded-md border border-destructive/20 bg-background/70 p-2"
+                          >
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="font-medium text-destructive">
+                                {formatAmount(item.penalty_points)} points
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatCompactDate(item.created_at)}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {item.reason || "No reason provided"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-300">
+                      Bonus history
+                    </p>
+                    {bonuses.length === 0 ? (
+                      <p className="mt-3 text-sm text-muted-foreground">No bonuses this month.</p>
+                    ) : (
+                      <div className="mt-3 space-y-2">
+                        {bonuses.map((item) => (
+                          <div
+                            key={`bonus-${item.id}`}
+                            className="rounded-md border border-emerald-500/20 bg-background/70 p-2"
+                          >
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="font-medium text-emerald-600 dark:text-emerald-300">
+                                +{formatAmount(item.bonus_amount)}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatCompactDate(item.created_at)}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {item.reason || "No reason provided"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </CardContent>

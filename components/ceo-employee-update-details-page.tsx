@@ -15,6 +15,10 @@ import {
   type EmployeeCalendarDay,
   type EmployeeMonthlyOverview,
 } from "@/lib/update-tracking-ceo";
+import {
+  getLatestDueUpdateDateIso,
+  getLocalTodayIso,
+} from "@/lib/update-tracking-deadline";
 import { cn } from "@/lib/utils";
 import { fetchAllUsersMonthlyUpdates } from "@/services/updateTrackingServices";
 import { Badge } from "@/components/ui/badge";
@@ -47,13 +51,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function toIsoDateInUtc(date: Date) {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 function getDayStatusStyles(status: EmployeeCalendarDay["status"]) {
   switch (status) {
@@ -304,17 +301,21 @@ export function CeoEmployeeUpdateDetailsPage({ userId }: { userId: number }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const now = React.useMemo(() => new Date(), []);
-  const todayIso = React.useMemo(() => toIsoDateInUtc(now), [now]);
+  const todayIso = React.useMemo(() => getLocalTodayIso({ now }), [now]);
+  const metricsAsOfIso = React.useMemo(
+    () => getLatestDueUpdateDateIso({ now }),
+    [now],
+  );
   const searchParamsString = searchParams.toString();
   const lastSearchParamsRef = React.useRef(searchParamsString);
 
   const [yearInput, setYearInput] = React.useState(() => {
     const value = Number.parseInt(searchParams.get("year") ?? "", 10);
-    return Number.isInteger(value) ? String(value) : String(now.getUTCFullYear());
+    return Number.isInteger(value) ? String(value) : String(now.getFullYear());
   });
   const [monthInput, setMonthInput] = React.useState(() => {
     const value = Number.parseInt(searchParams.get("month") ?? "", 10);
-    return Number.isInteger(value) ? String(value) : String(now.getUTCMonth() + 1);
+    return Number.isInteger(value) ? String(value) : String(now.getMonth() + 1);
   });
   const [selectedDayDate, setSelectedDayDate] = React.useState<string | null>(null);
 
@@ -340,9 +341,10 @@ export function CeoEmployeeUpdateDetailsPage({ userId }: { userId: number }) {
       employees: updatesQuery.data,
       year,
       month,
+      metricsAsOfIso,
       todayIso,
     });
-  }, [isValidPeriod, month, todayIso, updatesQuery.data, year]);
+  }, [isValidPeriod, metricsAsOfIso, month, todayIso, updatesQuery.data, year]);
 
   const employee = React.useMemo(
     () => employeeOverviews.find((item) => item.userId === userId) ?? null,

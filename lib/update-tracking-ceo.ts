@@ -209,37 +209,43 @@ export function sortEmployees(
   employees: EmployeeMonthlyOverview[],
   sortBy: EmployeeSortOption,
 ) {
-  return [...employees].sort((a, b) => {
+  const indexed = employees.map((employee, index) => ({ employee, index }));
+
+  indexed.sort((left, right) => {
+    const a = left.employee;
+    const b = right.employee;
+    let comparison = 0;
+
     switch (sortBy) {
       case "most_updates":
-        return (
-          b.submittedUpdatesCount - a.submittedUpdatesCount ||
-          b.completionRate - a.completionRate ||
-          a.name.localeCompare(b.name)
-        );
+        comparison = b.submittedUpdatesCount - a.submittedUpdatesCount;
+        break;
       case "most_missing":
-        return (
-          b.missingWorkdaysCount - a.missingWorkdaysCount ||
-          a.completionRate - b.completionRate ||
-          a.name.localeCompare(b.name)
-        );
+        comparison = b.missingWorkdaysCount - a.missingWorkdaysCount;
+        break;
       case "highest_completion":
-        return (
-          b.completionRate - a.completionRate ||
-          b.submittedUpdatesCount - a.submittedUpdatesCount ||
-          a.name.localeCompare(b.name)
-        );
+        comparison = b.completionRate - a.completionRate;
+        break;
       case "latest_update":
-        return (
-          b.lastUpdateTimestamp - a.lastUpdateTimestamp ||
-          a.name.localeCompare(b.name)
-        );
+        comparison = b.lastUpdateTimestamp - a.lastUpdateTimestamp;
+        break;
       case "name_asc":
-        return a.name.localeCompare(b.name);
+        comparison = a.name.localeCompare(b.name);
+        break;
       default:
-        return 0;
+        comparison = 0;
+        break;
     }
+
+    if (comparison !== 0) {
+      return comparison;
+    }
+
+    // Preserve backend order for ties.
+    return left.index - right.index;
   });
+
+  return indexed.map((item) => item.employee);
 }
 
 export function buildCalendarGrid(
@@ -262,11 +268,12 @@ export function buildEmployeeOverviews(params: {
   employees: AllUsersMonthlyUpdatesEmployee[];
   year: number;
   month: number;
+  metricsAsOfIso: string;
   todayIso: string;
 }) {
-  const { employees, year, month, todayIso } = params;
+  const { employees, year, month, metricsAsOfIso, todayIso } = params;
   const totalDays = getDaysInMonth(year, month);
-  const elapsedMonth = getElapsedMonthRange({ year, month, today: todayIso });
+  const elapsedMonth = getElapsedMonthRange({ year, month, today: metricsAsOfIso });
 
   return employees.map<EmployeeMonthlyOverview>((employee) => {
     const scopedUpdates = employee.updates.filter((update) =>
@@ -306,7 +313,7 @@ export function buildEmployeeOverviews(params: {
     const metrics = getUpdateMetricsForRange({
       updates: scopedUpdates,
       range: elapsedMonth.range,
-      today: todayIso,
+      today: metricsAsOfIso,
     });
     const totalWorkdays = metrics.expectedCount;
     const submittedUpdatesCount = metrics.actualCount;
@@ -353,12 +360,30 @@ export function buildTeamSummary(
 
   const topPerformer =
     employees.length > 0
-      ? [...employees].sort(
-          (a, b) =>
-            b.completionRate - a.completionRate ||
-            b.submittedUpdatesCount - a.submittedUpdatesCount ||
-            a.name.localeCompare(b.name),
-        )[0]
+      ? employees.reduce<EmployeeMonthlyOverview | null>((best, candidate) => {
+          if (!best) {
+            return candidate;
+          }
+
+          if (candidate.completionRate > best.completionRate) {
+            return candidate;
+          }
+
+          if (candidate.completionRate < best.completionRate) {
+            return best;
+          }
+
+          if (candidate.submittedUpdatesCount > best.submittedUpdatesCount) {
+            return candidate;
+          }
+
+          if (candidate.submittedUpdatesCount < best.submittedUpdatesCount) {
+            return best;
+          }
+
+          // Keep earlier backend order on exact ties.
+          return best;
+        }, null)
       : null;
 
   return {

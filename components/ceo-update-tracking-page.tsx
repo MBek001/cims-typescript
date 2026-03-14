@@ -22,31 +22,32 @@ import {
   type EmployeeSortOption,
   type EmployeeStatusFilter,
 } from "@/lib/update-tracking-ceo";
+import {
+  getLatestDueUpdateDateIso,
+  getLocalTodayIso,
+} from "@/lib/update-tracking-deadline";
 import { fetchAllUsersMonthlyUpdates } from "@/services/updateTrackingServices";
-
-function toIsoDateInUtc(date: Date) {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 export function CeoUpdateTrackingPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const now = React.useMemo(() => new Date(), []);
-  const todayIso = React.useMemo(() => toIsoDateInUtc(now), [now]);
+  const todayIso = React.useMemo(() => getLocalTodayIso({ now }), [now]);
+  const metricsAsOfIso = React.useMemo(
+    () => getLatestDueUpdateDateIso({ now }),
+    [now],
+  );
   const searchParamsString = searchParams.toString();
   const lastSearchParamsRef = React.useRef(searchParamsString);
 
   const [yearInput, setYearInput] = React.useState(() => {
     const value = Number.parseInt(searchParams.get("year") ?? "", 10);
-    return Number.isInteger(value) ? String(value) : String(now.getUTCFullYear());
+    return Number.isInteger(value) ? String(value) : String(now.getFullYear());
   });
   const [monthInput, setMonthInput] = React.useState(() => {
     const value = Number.parseInt(searchParams.get("month") ?? "", 10);
-    return Number.isInteger(value) ? String(value) : String(now.getUTCMonth() + 1);
+    return Number.isInteger(value) ? String(value) : String(now.getMonth() + 1);
   });
   const [search, setSearch] = React.useState("");
   const [sortBy, setSortBy] = React.useState<EmployeeSortOption>("most_updates");
@@ -73,9 +74,10 @@ export function CeoUpdateTrackingPage() {
       employees: updatesQuery.data,
       year,
       month,
+      metricsAsOfIso,
       todayIso,
     });
-  }, [updatesQuery.data, isValidPeriod, month, todayIso, year]);
+  }, [metricsAsOfIso, todayIso, updatesQuery.data, isValidPeriod, month, year]);
 
   const summary = React.useMemo(
     () => buildTeamSummary(employeeOverviews),

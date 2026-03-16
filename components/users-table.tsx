@@ -58,6 +58,23 @@ const PERMISSION_KEYS = [
   "update_list",
   
 ] as const;
+
+const JOB_TITLE_OPTIONS = [
+  "CEO",
+  "General Manager",
+  "Developers Team Leader",
+  "Backend developer",
+  "Frontend developer",
+  "UX/UI designer",
+  "Mobile App developer",
+  "Wordpress developer",
+  "AI research and development expert",
+  "Sales Manager",
+  "Marketing Team Leader",
+  "Social Media Maganer",
+  "Brand Face",
+] as const;
+
 type PermissionKey = (typeof PERMISSION_KEYS)[number];
 type PermissionsData = Record<PermissionKey, boolean>;
 
@@ -338,6 +355,9 @@ export function UsersTable() {
               <TableHead className="px-4 py-2 text-left text-sm font-semibold text-muted-foreground whitespace-nowrap border border-border">
                 Role
               </TableHead>
+              <TableHead className="px-4 py-2 text-left text-sm font-semibold text-muted-foreground whitespace-nowrap border border-border">
+                Job Title
+              </TableHead>
 
               <TableHead className="px-4 py-2 text-left text-sm font-semibold text-muted-foreground whitespace-nowrap border border-border">
                 Salary
@@ -355,7 +375,7 @@ export function UsersTable() {
             {!users || users.length === 0 ? (
               <TableRow className="hover:bg-muted/50 border border-border">
                 <TableCell
-                  colSpan={10}
+                  colSpan={9}
                   className="text-center py-6 text-muted-foreground border border-border"
                 >
                   No users found.
@@ -400,6 +420,9 @@ export function UsersTable() {
                     >
                       {user.role}
                     </span>
+                  </TableCell>
+                  <TableCell className="border border-border text-muted-foreground">
+                    {user.job_title?.trim() || "-"}
                   </TableCell>
 
                   <TableCell className="border border-border font-medium text-green-600 dark:text-green-400">
@@ -591,6 +614,7 @@ export function UsersTable() {
                     password: string;
                     company_code: string;
                     telegram_id: string;
+                    job_title: string;
                     default_salary: number;
                     role: string;
                     is_active: boolean;
@@ -603,6 +627,8 @@ export function UsersTable() {
                       (formData.get("company_code") as string) || undefined,
                     telegram_id:
                       (formData.get("telegram_id") as string) || undefined,
+                    job_title:
+                      (formData.get("job_title") as string) || undefined,
                     default_salary: formData.get("default_salary")
                       ? Number(formData.get("default_salary"))
                       : undefined,
@@ -674,6 +700,36 @@ export function UsersTable() {
                     name="telegram_id"
                     defaultValue={selectedUser.telegram_id ?? ""}
                   />
+                </div>
+                <div className="space-y-1">
+                  <Label>Job Title</Label>
+                  <select
+                    name="job_title"
+                    defaultValue={selectedUser.job_title ?? ""}
+                    className={nativeSelectClassName}
+                  >
+                    <option value="" className={nativeOptionClassName}>
+                      Select job title
+                    </option>
+                    {selectedUser.job_title &&
+                      !JOB_TITLE_OPTIONS.includes(selectedUser.job_title as (typeof JOB_TITLE_OPTIONS)[number]) && (
+                        <option
+                          value={selectedUser.job_title}
+                          className={nativeOptionClassName}
+                        >
+                          {selectedUser.job_title}
+                        </option>
+                      )}
+                    {JOB_TITLE_OPTIONS.map((job) => (
+                      <option
+                        key={job}
+                        value={job}
+                        className={nativeOptionClassName}
+                      >
+                        {job}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-1">
                   <Label>Default Salary</Label>

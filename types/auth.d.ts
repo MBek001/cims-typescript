@@ -7,6 +7,7 @@ export interface User {
   surname: string;
   company_code?: string | null;
   telegram_id?: string | null;
+  job_title?: string | null;
   role: string;
   is_active?: boolean;
   default_salary?: number | null;

@@ -8,6 +8,7 @@ export interface CreateUserPayload {
   password: string;
   telegram_id?: string;
   company_code?: string;
+  job_title?: string;
   default_salary?: number;
   is_active?: boolean;
 }

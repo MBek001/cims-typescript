@@ -131,6 +131,19 @@ const applyClientFilters = (clients: Client[], filters: FilterState) => {
   });
 };
 
+const isNotFoundError = (error: unknown) => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  if (!("response" in error)) {
+    return false;
+  }
+
+  const response = (error as { response?: { status?: unknown } }).response;
+  return response?.status === 404;
+};
+
 const useClientStore = create<ClientStore>((set, get) => ({
   clients: [],
   filteredClients: [],
@@ -151,13 +164,14 @@ const useClientStore = create<ClientStore>((set, get) => ({
 
   fetchClients: async () => {
     set({ loading: true, error: null });
-    try {
+    const fetchDashboard = async (pageOverride?: number) => {
       const { filters, page, pageSize } = get();
+      const requestedPage = clampPage(pageOverride ?? page);
       const dashboard = await getCrmDashboard({
         search: filters.search || null,
         status_filter: filters.status || null,
         show_all: filters.show_all,
-        page: clampPage(page),
+        page: requestedPage,
         page_size: clampPageSize(pageSize),
       });
       const clients = dashboard.customers;
@@ -169,12 +183,35 @@ const useClientStore = create<ClientStore>((set, get) => ({
       set({
         clients,
         filteredClients: applyClientFilters(clients, filters),
-        page: dashboard.page ?? page,
+        page: dashboard.page ?? requestedPage,
         pageSize: effectivePageSize,
         totalItems,
         totalPages,
       });
+    };
+
+    try {
+      await fetchDashboard();
     } catch (err) {
+      if (isNotFoundError(err)) {
+        const { page } = get();
+        const fallbackPage = clampPage(page - 1);
+        if (fallbackPage !== page) {
+          try {
+            await fetchDashboard(fallbackPage);
+            return;
+          } catch (retryError) {
+            set({
+              error:
+                retryError instanceof Error
+                  ? retryError.message
+                  : "Failed to fetch clients",
+            });
+            return;
+          }
+        }
+      }
+
       set({
         error: err instanceof Error ? err.message : "Failed to fetch clients",
       });
@@ -353,8 +390,10 @@ const useClientStore = create<ClientStore>((set, get) => ({
   },
 
   setPage: async (page) => {
+    const { totalPages } = get();
     const nextPage = clampPage(page);
-    set({ page: nextPage });
+    const cappedPage = totalPages > 0 ? Math.min(nextPage, totalPages) : nextPage;
+    set({ page: cappedPage });
     await get().fetchClients();
   },
 

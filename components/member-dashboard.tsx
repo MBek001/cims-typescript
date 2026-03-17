@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDownRight, ArrowUpRight, CalendarDays, Gauge, Target, TrendingUp } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CalendarDays,
+  Gauge,
+  Sparkles,
+  Target,
+  TrendingUp,
+} from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { fetchMemberSalaryEstimate } from "@/services/memberServices";
 import {
@@ -29,6 +37,7 @@ import {
 import {
   getAlignedPreviousMonthRange,
   getAlignedPreviousWeekRange,
+  getDaysInMonth,
   getElapsedMonthRange,
   getElapsedWeekRange,
   getShiftedMonth,
@@ -45,6 +54,8 @@ const comparisonChartConfig = {
     color: "var(--chart-3)",
   },
 } satisfies ChartConfig;
+
+const AI_SUMMARY_END_WINDOW_DAYS = 5;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -71,6 +82,117 @@ function formatCompactDate(value?: string) {
         year: "numeric",
       })
     : value || "-";
+}
+
+type AiSummaryTone = "info" | "warning" | "critical" | "positive" | "neutral";
+
+interface AiSummarySection {
+  label: string;
+  content: string;
+  tone: AiSummaryTone;
+}
+
+function getAiSummaryTone(label: string): AiSummaryTone {
+  const normalized = label.trim().toLowerCase();
+
+  if (normalized.includes("risk")) {
+    return "critical";
+  }
+
+  if (normalized.includes("tavsiya")) {
+    return "positive";
+  }
+
+  if (normalized.includes("kuzatuv")) {
+    return "warning";
+  }
+
+  if (normalized.includes("baho")) {
+    return "info";
+  }
+
+  return "neutral";
+}
+
+function parseAiSummary(summary?: string): AiSummarySection[] {
+  if (!summary) {
+    return [];
+  }
+
+  const normalizedSummary = summary.replace(/\r\n/g, "\n").trim();
+  if (!normalizedSummary) {
+    return [];
+  }
+
+  const headingPattern = /\*\*([^*:\n]+):\*\*/g;
+  const matches: Array<{ label: string; from: number; bodyStart: number }> = [];
+  let match = headingPattern.exec(normalizedSummary);
+
+  while (match) {
+    matches.push({
+      label: match[1].trim(),
+      from: match.index,
+      bodyStart: headingPattern.lastIndex,
+    });
+    match = headingPattern.exec(normalizedSummary);
+  }
+
+  if (matches.length === 0) {
+    return [
+      {
+        label: "Summary",
+        content: normalizedSummary.replace(/\s+/g, " ").trim(),
+        tone: "neutral",
+      },
+    ];
+  }
+
+  return matches
+    .map((item, index) => {
+      const nextHeadingStart =
+        index + 1 < matches.length ? matches[index + 1].from : normalizedSummary.length;
+      const content = normalizedSummary
+        .slice(item.bodyStart, nextHeadingStart)
+        .replace(/\s+/g, " ")
+        .trim();
+
+      return {
+        label: item.label,
+        content,
+        tone: getAiSummaryTone(item.label),
+      };
+    })
+    .filter((item) => item.content.length > 0);
+}
+
+function getAiSummaryStyles(tone: AiSummaryTone) {
+  switch (tone) {
+    case "critical":
+      return {
+        badgeVariant: "destructive" as const,
+        cardClassName: "border-destructive/30 bg-destructive/5",
+      };
+    case "positive":
+      return {
+        badgeVariant: "success" as const,
+        cardClassName: "border-emerald-500/30 bg-emerald-500/10",
+      };
+    case "warning":
+      return {
+        badgeVariant: "outline" as const,
+        cardClassName: "border-amber-500/30 bg-amber-500/10",
+      };
+    case "info":
+      return {
+        badgeVariant: "secondary" as const,
+        cardClassName: "border-primary/25 bg-primary/10",
+      };
+    default:
+      return {
+        badgeVariant: "outline" as const,
+        cardClassName: "border-border/60 bg-muted/15",
+      };
+  }
 }
 
 function TrendBadge({ value }: { value: number }) {
@@ -107,7 +229,7 @@ export function MemberDashboard() {
   });
 
   const profileQuery = useQuery({
-    queryKey: ["member-dashboard", "my-report"],
+    queryKey: ["member-dashboard", "my-profile"],
     queryFn: fetchMyProfile,
   });
 
@@ -179,6 +301,12 @@ export function MemberDashboard() {
   const profileData = profileQuery.data;
   const profileUser = profileData?.user;
   const profileStatistics = profileData?.statistics;
+  const aiSummarySections = parseAiSummary(profileData?.ai_summary);
+  const daysLeftInMonth =
+    getDaysInMonth(salaryYear, salaryMonth) - now.getUTCDate();
+  const shouldShowAiSummary =
+    aiSummarySections.length > 0 &&
+    daysLeftInMonth <= AI_SUMMARY_END_WINDOW_DAYS;
   const recentUpdates = profileData?.recent_updates ?? [];
   const displayName = profileUser?.name || stats.user_name || "Member";
   const displayUserId = profileUser?.id ?? stats.user_id;
@@ -694,6 +822,38 @@ export function MemberDashboard() {
               </div>
 
               <div className="space-y-3">
+                {shouldShowAiSummary ? (
+                  <div className="rounded-lg border bg-linear-to-br from-primary/5 via-muted/10 to-card p-3">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <p className="text-sm font-medium">AI Summary</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {aiSummarySections.map((section, index) => {
+                        const styles = getAiSummaryStyles(section.tone);
+
+                        return (
+                          <div
+                            key={`${section.label}-${index}`}
+                            className={`rounded-md border p-2 ${styles.cardClassName}`}
+                          >
+                            <div className="mb-1 flex items-center justify-between gap-2">
+                              <p className="text-xs text-muted-foreground">AI Insight</p>
+                              <Badge variant={styles.badgeVariant}>{section.label}</Badge>
+                            </div>
+                            <p className="text-sm leading-relaxed text-foreground/90">
+                              {section.content}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
                 <p className="text-sm font-medium">Recent updates</p>
                 {recentUpdates.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No recent updates found.</p>

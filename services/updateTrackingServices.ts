@@ -97,6 +97,7 @@ export interface MyProfileResponse {
   user: MyProfileUser;
   statistics: MyProfileStatistics;
   recent_updates: MyProfileRecentUpdate[];
+  ai_summary?: string;
 }
 
 export interface AllUsersUpdateEntry {
@@ -240,6 +241,7 @@ function normalizeMyProfileResponse(payload: unknown): MyProfileResponse {
         0,
     },
     recent_updates: normalizedRecentUpdates,
+    ai_summary: readString(root, "ai_summary") ?? undefined,
   };
 }
 

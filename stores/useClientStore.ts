@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { getCanonicalCRMStatusValue } from "@/lib/crm-statuses";
 import {
-  getClients,
+  getCrmDashboard,
   addClient as apiAddClient,
   updateClient as apiUpdateClient,
   deleteClient as apiDeleteClient,
@@ -23,6 +23,10 @@ interface ClientStore {
   loading: boolean;
   error: string | null;
   filters: FilterState;
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
 
   // Actions
   fetchClients: () => Promise<void>;
@@ -42,6 +46,8 @@ interface ClientStore {
   setDateFilter: (start: string, end?: string) => Promise<void>;
   setPhoneFilter: (phone: string) => Promise<void>;
   clearFilters: () => Promise<void>;
+  setPage: (page: number) => Promise<void>;
+  setPageSize: (pageSize: number) => Promise<void>;
 }
 
 // Helper function to safely get URL parameters (client-side only)
@@ -67,6 +73,12 @@ const toComparableDate = (value?: string) => {
 
   return parsed.toISOString().split("T")[0];
 };
+
+const clampPage = (page: number, min = 1) =>
+  Math.max(Number.isFinite(page) ? Math.floor(page) : min, min);
+
+const clampPageSize = (pageSize: number, min = 1, max = 50) =>
+  Math.min(Math.max(Number.isFinite(pageSize) ? Math.floor(pageSize) : min, min), max);
 
 const applyClientFilters = (clients: Client[], filters: FilterState) => {
   const searchValue = filters.search.trim().toLowerCase();
@@ -132,18 +144,36 @@ const useClientStore = create<ClientStore>((set, get) => ({
     phoneNumber: "",
     show_all: getUrlParam("show_all") === "true",
   },
+  page: 1,
+  pageSize: 50,
+  totalItems: 0,
+  totalPages: 0,
 
   fetchClients: async () => {
     set({ loading: true, error: null });
     try {
-      const filters = get().filters;
-      const data = await getClients({
-        search: filters.search || undefined,
-        status: filters.status || undefined,
-        phone: filters.phoneNumber || undefined,
+      const { filters, page, pageSize } = get();
+      const dashboard = await getCrmDashboard({
+        search: filters.search || null,
+        status_filter: filters.status || null,
         show_all: filters.show_all,
+        page: clampPage(page),
+        page_size: clampPageSize(pageSize),
       });
-      set({ clients: data, filteredClients: applyClientFilters(data, filters) });
+      const clients = dashboard.customers;
+      const effectivePageSize = dashboard.page_size ?? pageSize;
+      const totalItems = dashboard.total_items ?? clients.length;
+      const totalPages =
+        dashboard.total_pages ??
+        Math.ceil(totalItems / (effectivePageSize || 1));
+      set({
+        clients,
+        filteredClients: applyClientFilters(clients, filters),
+        page: dashboard.page ?? page,
+        pageSize: effectivePageSize,
+        totalItems,
+        totalPages,
+      });
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Failed to fetch clients",
@@ -157,10 +187,7 @@ const useClientStore = create<ClientStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await apiAddClient(client);
-      const updatedClients = await getClients();
-      set({
-        clients: updatedClients,
-        filteredClients: updatedClients,
+      set((state) => ({
         filters: {
           search: "",
           status: null,
@@ -169,8 +196,11 @@ const useClientStore = create<ClientStore>((set, get) => ({
           phoneNumber: "",
           show_all: false,
         },
-      });
+        page: 1,
+        pageSize: state.pageSize,
+      }));
       updateUrl();
+      await get().fetchClients();
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Failed to add client",
@@ -184,10 +214,7 @@ const useClientStore = create<ClientStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await apiUpdateClient(id, client);
-      const updatedClients = await getClients();
-      set({
-        clients: updatedClients,
-        filteredClients: updatedClients,
+      set((state) => ({
         filters: {
           search: "",
           status: null,
@@ -196,8 +223,11 @@ const useClientStore = create<ClientStore>((set, get) => ({
           phoneNumber: "",
           show_all: false,
         },
-      });
+        page: 1,
+        pageSize: state.pageSize,
+      }));
       updateUrl();
+      await get().fetchClients();
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Failed to update client",
@@ -211,10 +241,7 @@ const useClientStore = create<ClientStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await apiDeleteClient(id);
-      const updatedClients = await getClients();
-      set({
-        clients: updatedClients,
-        filteredClients: updatedClients,
+      set((state) => ({
         filters: {
           search: "",
           status: null,
@@ -223,8 +250,11 @@ const useClientStore = create<ClientStore>((set, get) => ({
           phoneNumber: "",
           show_all: false,
         },
-      });
+        page: 1,
+        pageSize: state.pageSize,
+      }));
       updateUrl();
+      await get().fetchClients();
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Failed to delete client",
@@ -247,14 +277,12 @@ const useClientStore = create<ClientStore>((set, get) => ({
     }
     updateUrl(searchParams);
 
-    set((state) => {
-      const filters = { ...state.filters, search };
-      return {
-        filters,
-        filteredClients: applyClientFilters(state.clients, filters),
-        error: null,
-      };
-    });
+    set((state) => ({
+      filters: { ...state.filters, search },
+      page: 1,
+      error: null,
+    }));
+    await get().fetchClients();
   },
 
   setStatusFilter: async (status) => {
@@ -269,55 +297,47 @@ const useClientStore = create<ClientStore>((set, get) => ({
     }
     updateUrl(searchParams);
 
-    set((state) => {
-      const filters = { ...state.filters, status: normalizedStatus || null };
-      return {
-        filters,
-        filteredClients: applyClientFilters(state.clients, filters),
-        error: null,
-      };
-    });
+    set((state) => ({
+      filters: { ...state.filters, status: normalizedStatus || null },
+      page: 1,
+      error: null,
+    }));
+    await get().fetchClients();
   },
 
   setPlatformFilter: async (platform) => {
-    set((state) => {
-      const filters = { ...state.filters, platform };
-      return {
-        filters,
-        filteredClients: applyClientFilters(state.clients, filters),
-        error: null,
-      };
-    });
+    set((state) => ({
+      filters: { ...state.filters, platform },
+      page: 1,
+      error: null,
+    }));
+    await get().fetchClients();
   },
 
   setDateFilter: async (start, end) => {
-    set((state) => {
-      const filters = {
+    set((state) => ({
+      filters: {
         ...state.filters,
         dateRange: start ? { start, end } : null,
-      };
-      return {
-        filters,
-        filteredClients: applyClientFilters(state.clients, filters),
-        error: null,
-      };
-    });
+      },
+      page: 1,
+      error: null,
+    }));
+    await get().fetchClients();
   },
 
   setPhoneFilter: async (phone) => {
-    set((state) => {
-      const filters = { ...state.filters, phoneNumber: phone };
-      return {
-        filters,
-        filteredClients: applyClientFilters(state.clients, filters),
-        error: null,
-      };
-    });
+    set((state) => ({
+      filters: { ...state.filters, phoneNumber: phone },
+      page: 1,
+      error: null,
+    }));
+    await get().fetchClients();
   },
 
   clearFilters: async () => {
     updateUrl();
-    set({
+    set((state) => ({
       filters: {
         search: "",
         status: null,
@@ -326,9 +346,22 @@ const useClientStore = create<ClientStore>((set, get) => ({
         phoneNumber: "",
         show_all: false,
       },
-    });
-    const { clients } = get();
-    set({ filteredClients: clients });
+      page: 1,
+      pageSize: state.pageSize,
+    }));
+    await get().fetchClients();
+  },
+
+  setPage: async (page) => {
+    const nextPage = clampPage(page);
+    set({ page: nextPage });
+    await get().fetchClients();
+  },
+
+  setPageSize: async (pageSize) => {
+    const nextSize = clampPageSize(pageSize);
+    set({ page: 1, pageSize: nextSize });
+    await get().fetchClients();
   },
 }));
 

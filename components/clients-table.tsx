@@ -4,6 +4,8 @@ import * as React from "react";
 import { toast, Toaster } from "sonner";
 import {
   Calendar,
+  ChevronLeft,
+  ChevronRight,
   Edit,
   FileAudio,
   Loader2,
@@ -54,6 +56,7 @@ const LANGUAGE_OPTIONS = [
   { value: "en", label: "English" },
   { value: "ru", label: "Russian" },
 ];
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 50];
 
 type DialogMode = "add" | "edit" | "delete" | "view-note" | "play-audio";
 type FormState = {
@@ -140,6 +143,10 @@ export function ClientsTable() {
   const loading = useClientStore((s) => s.loading);
   const error = useClientStore((s) => s.error);
   const filters = useClientStore((s) => s.filters);
+  const page = useClientStore((s) => s.page);
+  const pageSize = useClientStore((s) => s.pageSize);
+  const totalItems = useClientStore((s) => s.totalItems);
+  const totalPages = useClientStore((s) => s.totalPages);
   const fetchClients = useClientStore((s) => s.fetchClients);
   const addClient = useClientStore((s) => s.addClient);
   const updateClient = useClientStore((s) => s.updateClient);
@@ -151,6 +158,8 @@ export function ClientsTable() {
   const setPhoneFilter = useClientStore((s) => s.setPhoneFilter);
   const setDateFilter = useClientStore((s) => s.setDateFilter);
   const clearFilters = useClientStore((s) => s.clearFilters);
+  const setPage = useClientStore((s) => s.setPage);
+  const setPageSize = useClientStore((s) => s.setPageSize);
 
   const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
   const urlSearch = searchParams.get("search") || "";
@@ -176,6 +185,22 @@ export function ClientsTable() {
   const [dateStart, setDateStart] = React.useState("");
   const [dateEnd, setDateEnd] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const pageSizeOptions = React.useMemo(() => {
+    const options = PAGE_SIZE_OPTIONS.includes(pageSize)
+      ? PAGE_SIZE_OPTIONS
+      : [...PAGE_SIZE_OPTIONS, pageSize];
+    return options.filter((value) => value >= 1 && value <= 50).sort((a, b) => a - b);
+  }, [pageSize]);
+  const safePage = Math.max(1, page);
+  const safePageSize = Math.max(1, Math.min(50, pageSize));
+  const computedTotalPages =
+    totalPages > 0
+      ? totalPages
+      : Math.max(1, Math.ceil((totalItems || clients.length) / safePageSize));
+  const hasTotal = totalItems > 0;
+  const startItem = hasTotal ? (safePage - 1) * safePageSize + 1 : 0;
+  const endItem = hasTotal ? Math.min(startItem + clients.length - 1, totalItems) : clients.length;
+  const isLastPage = totalPages > 0 ? safePage >= totalPages : clients.length < safePageSize;
 
   React.useEffect(() => {
     let isMounted = true;
@@ -380,6 +405,58 @@ export function ClientsTable() {
       </div>
 
       <div className="overflow-x-auto rounded-md border border-border bg-card">
+        <div className="flex flex-col gap-3 border-b border-border px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <div className="text-sm text-muted-foreground">
+            {hasTotal
+              ? `Showing ${startItem}-${endItem} of ${totalItems}`
+              : `Showing ${clients.length} result${clients.length === 1 ? "" : "s"}`}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Rows</Label>
+              <Select
+                value={String(safePageSize)}
+                onValueChange={(value) => void setPageSize(Number(value))}
+              >
+                <SelectTrigger className="h-8 w-[90px]">
+                  <SelectValue placeholder="Rows" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pageSizeOptions.map((size) => (
+                    <SelectItem key={size} value={String(size)}>
+                      {size}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => void setPage(safePage - 1)}
+                disabled={loading || safePage <= 1}
+              >
+                <ChevronLeft className="mr-1 size-4" />
+                Prev
+              </Button>
+              <div className="text-sm text-muted-foreground">
+                Page {safePage} of {computedTotalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => void setPage(safePage + 1)}
+                disabled={loading || isLastPage}
+              >
+                Next
+                <ChevronRight className="ml-1 size-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
